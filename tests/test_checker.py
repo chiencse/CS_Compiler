@@ -8,7 +8,7 @@ const PI: float = 3.14;
 func main() -> void {
     let x: int = 5;
     let y = x + 1;
-};
+}
 """
     expected = "Static checking passed"
     # Just check that it doesn't return an error
@@ -20,7 +20,7 @@ def test_002():
 func main() -> void {
     let x: int = 5;
     let x: int = 10;
-};
+}
 """
     expected = "Redeclared Variable: x"
     assert Checker(source).check_from_source() == expected
@@ -30,7 +30,7 @@ def test_003():
     source = """
 func main() -> void {
     let x = y + 1;
-};
+}
 """
     expected = "Undeclared Identifier: y"
     assert Checker(source).check_from_source() == expected
@@ -40,7 +40,7 @@ def test_004():
     source = """
 func main() -> void {
     let x: int = "hello";
-};
+}
 """
     expected = "Type Mismatch In Statement: VarDecl(x, int, StringLiteral('hello'))"
     assert Checker(source).check_from_source() == expected
@@ -50,7 +50,7 @@ def test_005():
     source = """
 func hello() -> void {
     let x: int = 5;
-};
+}
 """
     expected = "No Entry Point"
     assert Checker(source).check_from_source() == expected
@@ -60,7 +60,7 @@ def test_006():
     source = """
 func main() -> void {
     break;
-};
+}
 """
     expected = "Must In Loop: BreakStmt()"
     assert Checker(source).check_from_source() == expected
