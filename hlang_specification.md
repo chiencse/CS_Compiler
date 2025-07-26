@@ -495,7 +495,6 @@ func example() -> void {
     // Here: x = 10 (original), y is not accessible
 }
 ```
-```
 
 ---
 
@@ -591,10 +590,10 @@ Comparison expressions evaluate the relationship between two operands and always
 
 | Operator | Description | Operand Types | Result Type |
 |----------|-------------|---------------|-------------|
-| `<` | Less than | int, float, string | bool |
-| `<=` | Less than or equal | int, float, string | bool |
-| `>` | Greater than | int, float, string | bool |
-| `>=` | Greater than or equal | int, float, string | bool |
+| `<` | Less than | int, float | bool |
+| `<=` | Less than or equal | int, float | bool |
+| `>` | Greater than | int, float | bool |
+| `>=` | Greater than or equal | int, float | bool |
 
 **Comparison Semantics:**
 - **Numeric comparisons:** Follow standard mathematical ordering

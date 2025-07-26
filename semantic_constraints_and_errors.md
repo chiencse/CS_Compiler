@@ -142,23 +142,6 @@ func shadowError() -> void {
     }
 }
 
-// Error: Function not yet declared
-func earlyCall() -> void {
-    laterFunc();  // Undeclared(Function(), laterFunc)
-}
-
-func laterFunc() -> void {
-    print("Called later");
-}
-
-// Error: Function declared but not accessible
-func main() -> void {
-    {
-        func localFunc() -> void { print("local"); }
-    }
-    localFunc();  // Undeclared(Function(), localFunc) - out of scope
-}
-
 // Valid: Forward reference to global function
 func validCall() -> void {
     globalFunc();  // Valid: globalFunc declared later but in global scope
@@ -191,7 +174,7 @@ const MAX_VALUE = 100;
 
 **Binary Operation Rules:**
 - **Arithmetic (`+`, `-`, `*`, `/`, `%`):**
-  - Both operands must be `int` or `float`
+  - Both operands must be `int` or `float` (except for the `%`, only the `int` is accepted)
   - If both are `int`, result is `int`
   - If either is `float`, result is `float`
   - Special case: `string + string` is valid (concatenation)
