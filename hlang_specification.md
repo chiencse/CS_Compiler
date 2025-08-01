@@ -1503,12 +1503,13 @@ HLang uses different parameter passing mechanisms depending on the data type, ba
 - Performance: Efficient for small data types
 
 ```hlang
-func modifyInt(x: int) -> void {
-    x = 100;  // Only modifies local parameter copy
+func printModified(x: int) -> void {
+    let y = x + 1;
+    print(y);  // Works with a copy; original value remains unchanged
 }
 
 let value = 42;
-modifyInt(value);
+printModified(value);
 // value is still 42 after function call
 ```
 

@@ -300,18 +300,6 @@ func emptyArray() -> void {
     arr[0] = 5;                         // Cannot determine element type
 }
 
-// Error: Circular type dependencies
-func circularDependency() -> void {
-    let a = b + 1;                      // TypeCannotBeInferred - b not yet declared
-    let b = a * 2;                      // Creates circular dependency
-}
-
-// Error: Forward reference in initialization
-func forwardRef() -> void {
-    let result = processValue(undefined); // TypeCannotBeInferred - undefined not declared
-    let undefined = getValue();
-}
-
 // Error: Complex expression without sufficient context
 func ambiguousContext() -> void {
     let result = getGenericValue();     // TypeCannotBeInferred - function return type unknown
@@ -940,8 +928,8 @@ func edgeCases() -> void {
     // processEmptyArray([]);           // Would depend on array type inference
     
     // Literal arguments
-    add(5 + 3, 10 - 2);                // Valid - expressions as arguments
-    multiply(3.14159, 2.0);            // Valid - float literals
+    let sum = add(5 + 3, 10 - 2);                // Valid - expressions as arguments
+    let product = multiply(3.14159, 2.0);        // Valid - float literals
     greet("Literal", 18 + 7, !false);  // Valid - mixed expressions
 }
 ```
