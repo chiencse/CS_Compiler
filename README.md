@@ -128,6 +128,55 @@ The `ASTGeneration` class must:
 - **Type System**: Proper implementation of HLang's static type system
 - **Scope Management**: Correct handling of variable and function scope rules
 
+## Assignment 4 - Jasmin Code Generation
+
+### Required Tasks to Complete
+
+1. **Study the Code Generation Framework**
+   - Understand the existing code structure in `src/codegen/` directory
+   - Study the Jasmin bytecode format and JVM instruction set
+   - Master the relationship between AST nodes and JVM bytecode instructions
+
+2. **Implement Code Generation Classes**
+   - Complete the `CodeGenerator` class in `src/codegen/codegen.py`
+   - Enhance the `Emitter` class in `src/codegen/emitter.py`
+   - Generate correct Jasmin assembly code for all HLang language features
+   - Handle proper stack management and local variable allocation
+
+3. **Write 100 Code Generation Test Cases**
+   - Implement **100 test cases** in `tests/test_codegen.py`
+   - Test code generation for all language constructs
+   - Verify correct bytecode output and program execution
+   - Cover edge cases and complex nested structures
+
+### Code Generation Requirements
+
+The code generation system must:
+- **Target JVM Platform**: Generate Jasmin assembly code that compiles to Java bytecode
+- **Complete Implementation**: Only modify `codegen.py` and `emitter.py` files
+- **AST Traversal**: Use the visitor pattern to traverse AST nodes and emit instructions
+- **Stack Management**: Properly manage the JVM operand stack for all operations
+- **Type Handling**: Generate appropriate instructions for different data types
+- **Runtime Support**: Utilize the provided runtime classes (`io.class`, `HLang.class`)
+
+### Jasmin Code Generation Features
+
+The implementation must support:
+- **Variable Declarations**: Local variables with proper scope management
+- **Expressions**: Arithmetic, logical, and relational operations
+- **Control Flow**: If statements, loops (while, for), and function calls
+- **Arrays**: Array creation, access, and modification
+- **Functions**: Function definitions, calls, and return statements
+- **Built-in Functions**: Integration with I/O operations through runtime
+
+### Evaluation Criteria
+
+- **Code Generation**: Correctness and completeness of the `CodeGenerator` and `Emitter` implementations
+- **Bytecode Quality**: Generated Jasmin code must be syntactically correct and executable
+- **Test Coverage**: Quality and comprehensiveness of 100 code generation test cases
+- **Runtime Integration**: Proper utilization of the provided runtime environment
+- **Performance**: Efficient bytecode generation with optimal stack usage
+
 ---
 
 ## Project Structure
@@ -152,11 +201,26 @@ The `ASTGeneration` class must:
 │   ├── lexer/            # Lexer test reports with coverage
 │   ├── parser/           # Parser test reports with coverage
 │   ├── ast/              # AST generation test reports with coverage
-│   └── checker/          # Semantic checker test reports with coverage
+│   ├── checker/          # Semantic checker test reports with coverage
+│   └── codegen/          # Code generation test reports with coverage
 ├── src/                  # Source code
 │   ├── astgen/           # AST generation module
 │   │   ├── __init__.py   # Package initialization
 │   │   └── ast_generation.py # ASTGeneration class implementation
+│   ├── codegen/          # Code generation module
+│   │   ├── __init__.py   # Package initialization
+│   │   ├── codegen.py    # CodeGenerator class implementation
+│   │   ├── emitter.py    # Emitter class for JVM bytecode generation
+│   │   ├── error.py      # Code generation error definitions
+│   │   ├── frame.py      # Stack frame management
+│   │   ├── io.py         # I/O symbol definitions
+│   │   ├── jasmin_code.py # Jasmin instruction generation
+│   │   └── utils.py      # Code generation utilities
+│   ├── runtime/          # Runtime environment
+│   │   ├── HLang.class   # Main runtime class (compiled)
+│   │   ├── HLang.j       # Jasmin source for main class
+│   │   ├── io.class      # I/O runtime class (compiled)
+│   │   └── jasmin.jar    # Jasmin assembler
 │   ├── semantics/        # Semantic analysis module
 │   │   ├── __init__.py   # Package initialization
 │   │   ├── static_checker.py # StaticChecker class implementation
@@ -171,6 +235,7 @@ The `ASTGeneration` class must:
 └── tests/                # Comprehensive test suite
     ├── test_ast_gen.py   # AST generation tests
     ├── test_checker.py   # Semantic analysis tests
+    ├── test_codegen.py   # Code generation tests
     ├── test_lexer.py     # Lexer functionality tests
     ├── test_parser.py    # Parser functionality tests
     └── utils.py          # Testing utilities and helper classes
@@ -304,6 +369,7 @@ python3 run.py clean       # Clean build files
 - `make test-parser` or `python run.py test-parser` (Windows) / `python3 run.py test-parser` (macOS/Linux) - Run parser tests with HTML report generation
 - `make test-ast` or `python run.py test-ast` (Windows) / `python3 run.py test-ast` (macOS/Linux) - Run AST generation tests with HTML report generation
 - `make test-checker` or `python run.py test-checker` (Windows) / `python3 run.py test-checker` (macOS/Linux) - Run semantic checker tests with HTML report generation
+- `make test-codegen` or `python run.py test-codegen` (Windows) / `python3 run.py test-codegen` (macOS/Linux) - Run code generation tests with HTML report generation
 
 #### Maintenance Commands
 - `make clean` or `python run.py clean` (Windows) / `python3 run.py clean` (macOS/Linux) - Remove build directories
@@ -326,6 +392,7 @@ The project includes a comprehensive testing framework with:
 - `tests/test_parser.py` - Syntax analysis tests
 - `tests/test_ast_gen.py` - AST generation tests
 - `tests/test_checker.py` - Semantic analysis tests
+- `tests/test_codegen.py` - Code generation tests
 - `tests/utils.py` - Testing utilities and helper classes
 
 ### Running Tests
@@ -366,24 +433,35 @@ python run.py test-checker
 # macOS/Linux:
 python3 run.py test-checker
 
+# Run code generation tests
+make test-codegen
+# OR
+# Windows:
+python run.py test-codegen
+# macOS/Linux:
+python3 run.py test-codegen
+
 # View reports
 # Windows:
 start reports/lexer/index.html
 start reports/parser/index.html
 start reports/ast/index.html
 start reports/checker/index.html
+start reports/codegen/index.html
 
 # macOS:
 open reports/lexer/index.html
 open reports/parser/index.html
 open reports/ast/index.html
 open reports/checker/index.html
+open reports/codegen/index.html
 
 # Linux:
 xdg-open reports/lexer/index.html
 xdg-open reports/parser/index.html
 xdg-open reports/ast/index.html
 xdg-open reports/checker/index.html
+xdg-open reports/codegen/index.html
 ```
 
 ### Test Report Features
@@ -418,7 +496,11 @@ Semantic Analysis (StaticChecker) ← Assignment 3
     ↓
 Semantically Validated AST
     ↓
-[Future: Code Generation]
+Code Generation (CodeGenerator) ← Assignment 4
+    ↓
+Jasmin Assembly Code (.j)
+    ↓
+JVM Bytecode (.class)
 ```
 
 ### Extending the Grammar

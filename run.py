@@ -198,6 +198,11 @@ class HLangBuilder:
                 "  python3 run.py test-checker - Run semantic checker tests and generate reports"
             )
         )
+        print(
+            self.colors.yellow(
+                "  python3 run.py test-codegen - Run code generation tests and generate reports"
+            )
+        )
         print()
         print(self.colors.green("Cleaning:"))
         print(
@@ -640,6 +645,47 @@ class HLangBuilder:
         )
         self.clean_cache()
 
+    def test_codegen(self):
+        """Run code generation tests."""
+        if not self.build_dir.exists():
+            print(
+                self.colors.yellow("Build directory not found. Running build first...")
+            )
+            self.build_grammar()
+
+        print(self.colors.yellow("Running code generation tests..."))
+
+        # Clean and create reports directory
+        codegen_report_dir = self.report_dir / "codegen"
+        if codegen_report_dir.exists():
+            shutil.rmtree(codegen_report_dir)
+        self.report_dir.mkdir(exist_ok=True)
+
+        # Run tests
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(self.root_dir)
+
+        self.run_command(
+            [
+                str(self.venv_python3),
+                "-m",
+                "pytest",
+                "tests/test_codegen.py",
+                f"--html={codegen_report_dir}/index.html",
+                "--timeout=10",
+                "--self-contained-html",
+                "-v",
+            ],
+            check=False,
+        )  # Don't fail on test failures
+
+        print(
+            self.colors.green(
+                f"Code generation tests completed. Reports generated at {codegen_report_dir}/index.html"
+            )
+        )
+        self.clean_cache()
+
 
 def main():
     """Main entry point."""
@@ -660,6 +706,7 @@ Available commands:
   test-parser   Run parser tests and generate reports
   test-ast      Run AST generation tests
   test-checker  Run semantic checker tests
+  test-codegen  Run code generation tests
 
 Examples:
   python3 run.py setup
@@ -686,6 +733,7 @@ Examples:
             "test-parser",
             "test-ast",
             "test-checker",
+            "test-codegen",
         ],
         help="Command to execute",
     )
@@ -707,6 +755,7 @@ Examples:
         "test-parser": builder.test_parser,
         "test-ast": builder.test_ast,
         "test-checker": builder.test_checker,
+        "test-codegen": builder.test_codegen,
     }
 
     if args.command in commands:
