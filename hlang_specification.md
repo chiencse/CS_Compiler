@@ -35,7 +35,7 @@ HLang (Hybrid Language) is a simplified programming language designed for educat
 A HLang program consists of:
 1. Optional global constant declarations (using `const` keyword)
 2. Function declarations (including user-defined functions)
-3. A mandatory `main` function as the entry point
+3. A mandatory `main` function as the entry point. The `main` function is a `void` function and must not have any parameters.
 
 **Note:** Variable declarations (using `let` keyword) are only allowed within function bodies and cannot be declared at the global program level. Only constants can be declared globally.
 
@@ -1703,15 +1703,15 @@ print("Hello, " + name + "!");    // Output greeting
 
 **Type Conversion Functions:**
 
-HLang provides overloaded conversion functions for type transformations:
+HLang provides conversion functions for type transformations:
 
 | Function | Input Type | Output Type | Description |
 |----------|------------|-------------|-------------|
-| `str` | `int` | `string` | Convert integer to string representation |
-| `str` | `float` | `string` | Convert float to string representation |
-| `str` | `bool` | `string` | Convert boolean to string ("true" or "false") |
-| `int` | `string` | `int` | Parse string to integer (runtime error if invalid) |
-| `float` | `string` | `float` | Parse string to float (runtime error if invalid) |
+| `int2str` | `int` | `string` | Convert integer to string representation |
+| `float2str` | `float` | `string` | Convert float to string representation |
+| `bool2str` | `bool` | `string` | Convert boolean to string ("true" or "false") |
+| `str2int` | `string` | `int` | Parse string to integer (runtime error if invalid) |
+| `str2float` | `string` | `float` | Parse string to float (runtime error if invalid) |
 
 ```hlang
 // String conversion examples:
