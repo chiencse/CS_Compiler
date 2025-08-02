@@ -9,38 +9,77 @@ from build.HLangVisitor import HLangVisitor
 from build.HLangParser import HLangParser
 from src.utils.nodes import *
 
+
 class ASTGeneration(HLangVisitor):
-    # Visit a parse tree produced by HLangParser#program.
-    # program : constdecl* funcdecl* EOF ;
+    """
+    Visitor class that converts ANTLR parse trees into AST nodes.
+    """
+    
     def visitProgram(self, ctx: HLangParser.ProgramContext):
-        const_decls = [self.visit(child) for child in ctx.constdecl()]
-        func_decls = [self.visit(child) for child in ctx.funcdecl()]
+        """Visit the root program node."""
+        const_decls = []
+        func_decls = []
+        
+        for child in ctx.children:
+            if child.getText() == '<EOF>':
+                continue
+            result = self.visit(child)
+            if isinstance(result, ConstDecl):
+                const_decls.append(result)
+            elif isinstance(result, FuncDecl):
+                func_decls.append(result)
+        
         return Program(const_decls, func_decls)
-
-    # Visit a parse tree produced by HLangParser#constdecl.
-    # constdecl : CONST IDENTIFIER typ_anno ASS expr SM ;
-    def visitConstdecl(self, ctx: HLangParser.ConstdeclContext):
-        name = ctx.IDENTIFIER().getText()
-        type_annotation = self.visit(ctx.typ_anno())
-        expr = self.visit(ctx.expr())
-        return ConstDecl(name, type_annotation, expr)
-
-    # Visit a parse tree produced by HLangParser#vardecl.
-    # vardecl : LET IDENTIFIER typ_anno ASS expr ;
-    def visitVardecl(self, ctx: HLangParser.VardeclContext):
-        name = ctx.IDENTIFIER().getText()
-        type_annotation = self.visit(ctx.typ_anno())
-        expr = self.visit(ctx.expr())
-        return VarDecl(name, type_annotation, expr)
-
-    # Visit a parse tree produced by HLangParser#typ_anno.
-    # typ_anno : COLON typ | ;
-    def visitTyp_anno(self, ctx: HLangParser.Typ_annoContext):
-        return self.visit(ctx.typ()) if ctx.typ() else None
-
-    # Visit a parse tree produced by HLangParser#typ.
-    # typ : INT | FLOAT | BOOL | STRING | array_type;
-    def visitTyp(self, ctx: HLangParser.TypContext):
+    
+    def visitConst_decl(self, ctx: HLangParser.Const_declContext):
+        """Visit constant declaration."""
+        name = ctx.ID().getText()
+        type_annotation = None
+        if ctx.type_spec():
+            type_annotation = self.visit(ctx.type_spec())
+        value = self.visit(ctx.expression())
+        return ConstDecl(name, type_annotation, value)
+    
+    def visitFunc_decl(self, ctx: HLangParser.Func_declContext):
+        """Visit function declaration."""
+        name = ctx.ID().getText()
+        params = []
+        if ctx.parameter_list():
+            params = self.visit(ctx.parameter_list())
+        return_type = self.visit(ctx.return_type())
+        body = []
+        if ctx.statement():
+            body = [self.visit(stmt) for stmt in ctx.statement()]
+        return FuncDecl(name, params, return_type, body)
+    
+    def visitParameter_list(self, ctx: HLangParser.Parameter_listContext):
+        """Visit parameter list."""
+        return [self.visit(param) for param in ctx.parameter()]
+    
+    def visitParameter(self, ctx: HLangParser.ParameterContext):
+        """Visit parameter."""
+        name = ctx.ID().getText()
+        param_type = self.visit(ctx.type_spec())
+        return Param(name, param_type)
+    
+    def visitType_spec(self, ctx: HLangParser.Type_specContext):
+        """Visit type specification."""
+        if ctx.primitive_type():
+            return self.visit(ctx.primitive_type())
+        elif ctx.array_type():
+            return self.visit(ctx.array_type())
+    
+    def visitReturn_type(self, ctx: HLangParser.Return_typeContext):
+        """Visit return type."""
+        if ctx.primitive_type():
+            return self.visit(ctx.primitive_type())
+        elif ctx.array_type():
+            return self.visit(ctx.array_type())
+        elif ctx.VOID():
+            return VoidType()
+    
+    def visitPrimitive_type(self, ctx: HLangParser.Primitive_typeContext):
+        """Visit primitive type."""
         if ctx.INT():
             return IntType()
         elif ctx.FLOAT():
@@ -49,390 +88,296 @@ class ASTGeneration(HLangVisitor):
             return BoolType()
         elif ctx.STRING():
             return StringType()
-        elif ctx.array_type():
-            return self.visit(ctx.array_type())
-        return None
-
-    # Visit a parse tree produced by HLangParser#array_type.
-    # array_type : LS typ SM INT_LITERAL RS ;
+    
     def visitArray_type(self, ctx: HLangParser.Array_typeContext):
-        element_type = self.visit(ctx.typ())
-        size = int(ctx.INT_LITERAL().getText())
+        """Visit array type."""
+        element_type = self.visit(ctx.type_spec())
+        size = int(ctx.INT_LIT().getText())
         return ArrayType(element_type, size)
-
-    # Visit a parse tree produced by HLangParser#funcdecl.
-    # funcdecl : FUNC IDENTIFIER LR paramlist RR ARROW return_typ body ;
-    def visitFuncdecl(self, ctx: HLangParser.FuncdeclContext):
-        # print("----------Visiting funcdecl--------------")
-        name = ctx.IDENTIFIER().getText()
-        params = self.visit(ctx.paramlist())
-        return_type = self.visit(ctx.return_typ())
-        body = self.visit(ctx.body())
-        return FuncDecl(name, params, return_type, body)
-
-    # Visit a parse tree produced by HLangParser#return_typ.
-    # return_typ : typ | VOID ;
-    def visitReturn_typ(self, ctx: HLangParser.Return_typContext):
-        if ctx.VOID():
-            return VoidType()
-        return self.visit(ctx.typ())
-
-    # Visit a parse tree produced by HLangParser#paramlist.
-    # paramlist : params | ;
-    def visitParamlist(self, ctx: HLangParser.ParamlistContext):
-        return self.visit(ctx.params()) if ctx.params() else []
-
-    # Visit a parse tree produced by HLangParser#params.
-    # params : param CM params | param ;
-    def visitParams(self, ctx: HLangParser.ParamsContext):
-        params = [self.visit(ctx.param())]
-        if ctx.params():
-            params.extend(self.visit(ctx.params()))
-        return params
-
-    # Visit a parse tree produced by HLangParser#param.
-    # param : IDENTIFIER COLON typ ;
-    def visitParam(self, ctx: HLangParser.ParamContext):
-        name = ctx.IDENTIFIER().getText()
-        param_type = self.visit(ctx.typ())
-        return Param(name, param_type)
-
-    # Visit a parse tree produced by HLangParser#body.
-    # body : LC stmtlist RC ;
-    def visitBody(self, ctx: HLangParser.BodyContext):
-        return self.visit(ctx.stmtlist())
-        
-
-    # Visit a parse tree produced by HLangParser#stmtlist.
-    # stmtlist : stmt stmtlist | ;
-    def visitStmtlist(self, ctx: HLangParser.StmtlistContext):
-        if not ctx.stmt():
-            return []
-        statements = [self.visit(ctx.stmt())]
-        if ctx.stmtlist():
-            statements.extend(self.visit(ctx.stmtlist()))
-        return statements
-
-    # Visit a parse tree produced by HLangParser#stmt.
-    # stmt : vardecl SM | func_call SM | expr SM | return SM | assign_stmt SM | condition_stmt 
-    # | while_stmt | for_stmt |block_statement | break_stmt SM| continue_stmt SM;
-    def visitStmt(self, ctx: HLangParser.StmtContext):
-        if ctx.vardecl():
-            return self.visit(ctx.vardecl())
-        elif ctx.func_call():
-            return ExprStmt(self.visit(ctx.func_call())) #! Check is exist
-        elif ctx.expr():
-            return ExprStmt(self.visit(ctx.expr()))
-        elif ctx.return_():
-            return self.visit(ctx.return_())
-        elif ctx.assign_stmt():
-            return self.visit(ctx.assign_stmt())
-        elif ctx.condition_stmt():
-            return self.visit(ctx.condition_stmt())
-        elif ctx.while_stmt():
-            return self.visit(ctx.while_stmt())
-        elif ctx.for_stmt():
-            return self.visit(ctx.for_stmt())
-        elif ctx.block_statement():
-            return self.visit(ctx.block_statement())
-        elif ctx.break_stmt():
-            return self.visit(ctx.break_stmt())
-        elif ctx.continue_stmt():
-            return self.visit(ctx.continue_stmt())
-        return None
-
-    # Visit a parse tree produced by HLangParser#break_stmt.
-    def visitBreak_stmt(self, ctx: HLangParser.Break_stmtContext):
-        return BreakStmt()
-
-    # Visit a parse tree produced by HLangParser#continue_stmt.
-    def visitContinue_stmt(self, ctx: HLangParser.Continue_stmtContext):
-        return ContinueStmt()
-
-    # Visit a parse tree produced by HLangParser#assign_stmt.
-    # assign_stmt : lvalue ASS expr;
-    def visitAssign_stmt(self, ctx: HLangParser.Assign_stmtContext):
+    
+    def visitVar_decl(self, ctx: HLangParser.Var_declContext):
+        """Visit variable declaration."""
+        name = ctx.ID().getText()
+        value = self.visit(ctx.expression())
+        # Lấy type annotation nếu có, ngược lại None
+        type_annotation = self.visit(ctx.type_spec()) if ctx.type_spec() else None
+        # Luôn gọi 3 tham số vào VarDecl(name, var_type, value)
+        return VarDecl(name, type_annotation, value)
+    
+    def visitAssignment_stmt(self, ctx: HLangParser.Assignment_stmtContext):
+        """Visit assignment statement."""
         lvalue = self.visit(ctx.lvalue())
-        value = self.visit(ctx.expr())
+        value = self.visit(ctx.expression())
         return Assignment(lvalue, value)
-
-    # Visit a parse tree produced by HLangParser#lvalue.
-    # lvalue : IDENTIFIER array_literal | IDENTIFIER ;
-    # lvalue : array_access | IDENTIFIER ;
+    
     def visitLvalue(self, ctx: HLangParser.LvalueContext):
-        # name = ctx.IDENTIFIER().getText()
-        # base = IdLValue(name)
-        # if ctx.array_literal():
-        #     array_literal = self.visit(ctx.array_literal())  # ArrayLiteral
-        #     for idx in array_literal.elements:
-        #         base = ArrayAccessLValue(base, idx)
-        #     return base
-        base = IdLValue(ctx.IDENTIFIER().getText())
-        if ctx.multi_access():
-            indices = self.visit(ctx.multi_access())  # List of expressions
-            for idx in indices:
-                base = ArrayAccessLValue(base, idx)
-        return base
+        """Visit an lvalue expression (target of an assignment).
+        """
+        base = Identifier(ctx.ID().getText())
+        
+        # Handle array accesses
+        if ctx.array_access():
+            accesses = ctx.array_access()
+            for access in accesses[:-1]:
+                index = self.visit(access)
+                base = ArrayAccess(base, index)
+            last_index = self.visit(accesses[-1])
+            return ArrayAccessLValue(base, last_index)
+        
+        return IdLValue(ctx.ID().getText())
+    
+    def visitIf_stmt(self, ctx: HLangParser.If_stmtContext):
+        """Visit if / else if / else statement."""
+        expr_nodes   = [self.visit(e) for e in ctx.expression()]
+        block_nodes  = [self.visit(b) for b in ctx.block_stmt()]
 
-    # Visit a parse tree produced by HLangParser#condition_stmt.
-    # condition_stmt : IF LR expr RR body elif_list else_part;
-    def visitCondition_stmt(self, ctx: HLangParser.Condition_stmtContext):
-        condition = self.visit(ctx.expr())
-        then_stmt = BlockStmt(self.visit(ctx.body()))
-        elif_branches = self.visit(ctx.elif_list()) 
-        else_stmt = self.visit(ctx.else_part()) 
+        condition = expr_nodes[0]
+        then_stmt = block_nodes[0]
+
+        elif_branches = []
+        for cond, blk in zip(expr_nodes[1:], block_nodes[1:1 + (len(expr_nodes)-1)]):
+            elif_branches.append((cond, blk))
+
+        else_stmt = None
+        if len(block_nodes) > len(expr_nodes):
+            else_stmt = block_nodes[-1]
+
         return IfStmt(condition, then_stmt, elif_branches, else_stmt)
-
-    # Visit a parse tree produced by HLangParser#elif_list.
-    # elif_list : ELIF LR expr RR body elif_list | ;
-    def visitElif_list(self, ctx: HLangParser.Elif_listContext):
-        # debug_ctx(ctx, rule_name="visitElif_list", visitor=self)
-        if ctx.getChildCount() > 0:
-            condition = self.visit(ctx.expr())
-            body = BlockStmt(self.visit(ctx.body()))
-            elif_branches = [(condition, body)]
-            if ctx.elif_list():
-                elif_branches.extend(self.visit(ctx.elif_list()))
-            return elif_branches
-        return []
-
-    # Visit a parse tree produced by HLangParser#else_part.
-    #else_part : ELSE body | ;
-    def visitElse_part(self, ctx: HLangParser.Else_partContext):
-        # print("----------Visiting else_part--------------")
-        if ctx.ELSE():
-            return BlockStmt(self.visit(ctx.body()))
-        return None  
-
-    # Visit a parse tree produced by HLangParser#while_stmt.
-    # while_stmt : WHILE LR expr RR body ;
+    
     def visitWhile_stmt(self, ctx: HLangParser.While_stmtContext):
-        condition = self.visit(ctx.expr())
-        body = BlockStmt(self.visit(ctx.body()))
+        """Visit while statement."""
+        condition = self.visit(ctx.expression())
+        body = self.visit(ctx.block_stmt())
         return WhileStmt(condition, body)
-
-    # Visit a parse tree produced by HLangParser#for_stmt.
-    # for_stmt : FOR LR IDENTIFIER IN expr RR body ;
+    
     def visitFor_stmt(self, ctx: HLangParser.For_stmtContext):
-        variable = ctx.IDENTIFIER().getText()
-        iterable = self.visit(ctx.expr())
-        body = BlockStmt(self.visit(ctx.body()))
+        """Visit for statement."""
+        variable = ctx.ID().getText()
+        iterable = self.visit(ctx.expression())
+        body = self.visit(ctx.block_stmt())
         return ForStmt(variable, iterable, body)
-
-    # Visit a parse tree produced by HLangParser#block_statement.
-    # block_statement : LC stmtlist RC ;
-    def visitBlock_statement(self, ctx: HLangParser.Block_statementContext):
-        statements = self.visit(ctx.stmtlist())
-        return BlockStmt(statements)
-
-    # Visit a parse tree produced by HLangParser#return.
-    # return : RETURN (expr | )  ;
-    def visitReturn(self, ctx: HLangParser.ReturnContext):
-        value = self.visit(ctx.expr()) if ctx.expr() else None
+    
+    def visitReturn_stmt(self, ctx: HLangParser.Return_stmtContext):
+        """Visit return statement."""
+        value = None
+        if ctx.expression():
+            expr_ctx = ctx.expression()
+            value = self.visit(expr_ctx)
         return ReturnStmt(value)
+    
+    def visitBreak_stmt(self, ctx: HLangParser.Break_stmtContext):
+        """Visit break statement."""
+        return BreakStmt()
+    
+    def visitContinue_stmt(self, ctx: HLangParser.Continue_stmtContext):
+        """Visit continue statement."""
+        return ContinueStmt()
+    
+    def visitExpression_stmt(self, ctx: HLangParser.Expression_stmtContext):
+        """Visit expression statement."""
+        expr = self.visit(ctx.expression())
+        return ExprStmt(expr)
+    
+    def visitBlock_stmt(self, ctx: HLangParser.Block_stmtContext):
+        """Visit block statement."""
+        statements = []
+        if ctx.statement():
+            statements = [self.visit(stmt) for stmt in ctx.statement()]
+        return BlockStmt(statements)
+    
+    def visitExpression(self, ctx: HLangParser.ExpressionContext):
+        """Visit expression."""
+        return self.visit(ctx.pipeline_expr())
+    
+    def visitPipeline_expr(self, ctx: HLangParser.Pipeline_exprContext):
+        """Visit pipeline expression."""
+        if len(ctx.logical_or_expr()) == 1:
+            return self.visit(ctx.logical_or_expr(0))
+        else:
+            left = self.visit(ctx.logical_or_expr(0))
+            for i in range(1, len(ctx.logical_or_expr())):
+                right = self.visit(ctx.logical_or_expr(i))
+                left = BinaryOp(left, '>>', right)
+            return left
+    
+    def visitLogical_or_expr(self, ctx: HLangParser.Logical_or_exprContext):
+        """Visit logical OR expression."""
+        if len(ctx.logical_and_expr()) == 1:
+            return self.visit(ctx.logical_and_expr(0))
+        else:
+            left = self.visit(ctx.logical_and_expr(0))
+            for i in range(1, len(ctx.logical_and_expr())):
+                right = self.visit(ctx.logical_and_expr(i))
+                left = BinaryOp(left, '||', right)
+            return left
+    
+    def visitLogical_and_expr(self, ctx: HLangParser.Logical_and_exprContext):
+        """Visit logical AND expression."""
+        if len(ctx.equality_expr()) == 1:
+            return self.visit(ctx.equality_expr(0))
+        else:
+            left = self.visit(ctx.equality_expr(0))
+            for i in range(1, len(ctx.equality_expr())):
+                right = self.visit(ctx.equality_expr(i))
+                left = BinaryOp(left, '&&', right)
+            return left
+    
+    def visitEquality_expr(self, ctx: HLangParser.Equality_exprContext):
+        """Visit equality expression, left‑associative chaining of ==, !=."""
+        if len(ctx.relational_expr()) == 1:
+            return self.visit(ctx.relational_expr(0))
 
-    # Visit a parse tree produced by HLangParser#literal.
-     #literal: INT_LITERAL | FLOAT_LITERAL | TRUE | FALSE | STRING_LITERAL | array_literal;
-    def visitLiteral(self, ctx: HLangParser.LiteralContext):
-        # debug_ctx(ctx, rule_name="visitLiteral", visitor=self)
-        if ctx.INT_LITERAL():
-            return IntegerLiteral(int(ctx.INT_LITERAL().getText()))
-        elif ctx.FLOAT_LITERAL():
-            return FloatLiteral(float(ctx.FLOAT_LITERAL().getText()))
-        elif ctx.TRUE():
-            return BooleanLiteral(True)
-        elif ctx.FALSE():
-            return BooleanLiteral(False)
-        elif ctx.STRING_LITERAL():
-            return StringLiteral(ctx.STRING_LITERAL().getText())
-        elif ctx.array_literal():
-            return self.visit(ctx.array_literal())
-        return None
+        left = self.visit(ctx.relational_expr(0))
 
-    # Visit a parse tree produced by HLangParser#array_literal.
-    # array_literal : LS arg_list RS  array_literal | LS arg_list RS;
-    def visitArray_literal(self, ctx: HLangParser.Array_literalContext):
-        elements = self.visit(ctx.arg_list()) if ctx.arg_list() else []
-        return ArrayLiteral(elements)
+        for i in range(len(ctx.relational_expr()) - 1):
+            right = self.visit(ctx.relational_expr(i + 1))
 
-    # Visit a parse tree produced by HLangParser#array_access.
-    # array_access : (IDENTIFIER | func_call | LR expr RR | literal) multi_access ;
+            if ctx.EQUAL(i):
+                op = '=='
+            else:
+                op = '!='
+
+            left = BinaryOp(left, op, right)
+
+        return left
+    
+    def visitRelational_expr(self, ctx: HLangParser.Relational_exprContext):
+        """Visit relational expression, left‑associative chaining of <, <=, >, >=."""
+        if len(ctx.additive_expr()) == 1:
+            return self.visit(ctx.additive_expr(0))
+
+        result = self.visit(ctx.additive_expr(0))
+
+        ops = []
+        for i in range(len(ctx.children)):
+            child = ctx.children[i]
+            if child.getChildCount() == 0:
+                text = child.getText()
+                if text in ['<', '<=', '>', '>=']:
+                    ops.append(text)
+
+        for i in range(len(ops)):
+            right = self.visit(ctx.additive_expr(i + 1))
+            result = BinaryOp(result, ops[i], right)
+
+        return result
+    
+    def visitAdditive_expr(self, ctx: HLangParser.Additive_exprContext):
+        """Visit additive expression."""
+        if len(ctx.multiplicative_expr()) == 1:
+            return self.visit(ctx.multiplicative_expr(0))
+
+        result = self.visit(ctx.multiplicative_expr(0))
+
+        ops = []
+        for i in range(len(ctx.children)):
+            child = ctx.children[i]
+            if child.getChildCount() == 0:
+                text = child.getText()
+                if text in ['+', '-']:
+                    ops.append(text)
+
+        for i in range(len(ops)):
+            right = self.visit(ctx.multiplicative_expr(i + 1))
+            result = BinaryOp(result, ops[i], right)
+
+        return result
+    
+    def visitMultiplicative_expr(self, ctx: HLangParser.Multiplicative_exprContext):
+        """Visit multiplicative expression."""
+        if len(ctx.unary_expr()) == 1:
+            return self.visit(ctx.unary_expr(0))
+
+        result = self.visit(ctx.unary_expr(0))
+
+        ops = []
+        for i in range(len(ctx.children)):
+            child = ctx.children[i]
+            if child.getChildCount() == 0:
+                text = child.getText()
+                if text in ['*', '/', '%']:
+                    ops.append(text)
+            
+        for i in range(len(ops)):
+            right = self.visit(ctx.unary_expr(i + 1))
+            result = BinaryOp(result, ops[i], right)
+        return result
+    
+    def visitUnary_expr(self, ctx: HLangParser.Unary_exprContext):
+        """Visit unary expression."""
+        if ctx.postfix_expr():
+            return self.visit(ctx.postfix_expr())
+        else:
+            if ctx.NOT():
+                op = '!'
+            elif ctx.SUB():
+                op = '-'
+            else:
+                op = '+'
+            operand = self.visit(ctx.unary_expr())
+            return UnaryOp(op, operand)
+    
+    def visitPostfix_expr(self, ctx: HLangParser.Postfix_exprContext):
+        """Visit postfix expression."""
+        if ctx.type_keyword_func():
+            base = self.visit(ctx.type_keyword_func())
+        elif ctx.ID():
+            base = Identifier(ctx.ID().getText())
+            if ctx.LRB():
+                args = self.visit(ctx.argument_list()) if ctx.argument_list() else []
+                base = FunctionCall(base, args)
+        elif ctx.literal():
+            base = self.visit(ctx.literal())
+        else:
+            base = self.visit(ctx.expression())
+
+        if ctx.array_access():
+            for access in ctx.array_access():
+                index = self.visit(access)
+                base = ArrayAccess(base, index)
+
+        return base
+    
+    def visitType_keyword_func(self, ctx: HLangParser.Type_keyword_funcContext):
+        """Visit type keyword function call."""
+        func_name = ctx.type_keyword().getText()
+        args = []
+        if ctx.argument_list():
+            args = self.visit(ctx.argument_list())
+        return FunctionCall(Identifier(func_name), args)
+    
+    def visitArgument_list(self, ctx: HLangParser.Argument_listContext):
+        """Visit argument list."""
+        args = []
+        if ctx.expression():
+            for expr in ctx.expression():
+                args.append(self.visit(expr))
+        return args
     
     def visitArray_access(self, ctx: HLangParser.Array_accessContext):
-        # debug_ctx(ctx, rule_name="visitArray_access", visitor=self)
+        """Visit array access expression."""
+        return self.visit(ctx.expression())
     
-        base = self.visit(ctx.getChild(0))  #func_call, or literal
-        if ctx.IDENTIFIER():
-            base = Identifier(ctx.IDENTIFIER().getText())
-        if ctx.getChildCount() == 3:  # LR expr RR
-            base = self.visit(ctx.expr())
-        indices = self.visit(ctx.multi_access())
-        # Fold multiple indices into nested ArrayAccess nodes}")
-        res = reduce(lambda arr, idx: ArrayAccess(arr, idx), indices, base)
-        return res
-    # Visit a parse tree produced by HLangParser#multi_access.
-    # multi_access : index_access multi_access | index_access;
-    def visitMulti_access(self, ctx: HLangParser.Multi_accessContext):
-        # print("----------Visiting multi_access--------------")
-        indices = [self.visit(ctx.index_access())]
-        if ctx.multi_access():
-            indices.extend(self.visit(ctx.multi_access()))
-        return indices
-
-    # Visit a parse tree produced by HLangParser#index_access.
-    # index_access : LS expr RS ;
-    def visitIndex_access(self, ctx: HLangParser.Index_accessContext):
-        return self.visit(ctx.expr())
-
-    # Visit a parse tree produced by HLangParser#func_call.
-    # func_call: (IDENTIFIER | INT | FLOAT ) LR arg_list RR ;
-    def visitFunc_call(self, ctx: HLangParser.Func_callContext):
-        function = Identifier(ctx.getChild(0).getText()) 
-        args = self.visit(ctx.arg_list())
-        return FunctionCall(function, args)
-
-    # Visit a parse tree produced by HLangParser#arg_list.
-    # arg_list : args | ;
-    def visitArg_list(self, ctx: HLangParser.Arg_listContext):
-        return self.visit(ctx.args()) if ctx.args() else []
-
-    # Visit a parse tree produced by HLangParser#args.
-    # args: expr CM args | expr;
-    def visitArgs(self, ctx: HLangParser.ArgsContext):
-        args = [self.visit(ctx.expr())]
-        if ctx.args():
-            args.extend(self.visit(ctx.args()))
-        return args
-
-    # Visit a parse tree produced by HLangParser#expr.
-    # expr    : expr PIPE expr1 | expr1 ;
-    def visitExpr(self, ctx: HLangParser.ExprContext):
-        if ctx.PIPE():
-           return BinaryOp(self.visit(ctx.expr()), ctx.PIPE().getText(), self.visit(ctx.expr1()))
-        return self.visit(ctx.expr1())
-
-    # Visit a parse tree produced by HLangParser#expr1.
-    # expr1   : expr1 OR expr2 | expr2 ;
-    def visitExpr1(self, ctx: HLangParser.Expr1Context):
-        # print("----------Visiting expr1--------------")
-        if ctx.OR():
-            return BinaryOp(self.visit(ctx.expr1()), ctx.OR().getText(), self.visit(ctx.expr2()))
-        return self.visit(ctx.expr2())
-
-    # Visit a parse tree produced by HLangParser#expr2.
-    # expr2   : expr2 AND expr3 | expr3 ;
-    def visitExpr2(self, ctx: HLangParser.Expr2Context):
-        # print("----------Visiting expr2--------------")
-        if ctx.AND():
-            operator = ctx.AND().getText()
-            return BinaryOp(self.visit(ctx.expr2()), operator, self.visit(ctx.expr3()))
-        return self.visit(ctx.expr3())
-
-    # Visit a parse tree produced by HLangParser#expr3.
-    # expr3   : expr3 (EQ | NEQ) expr4 | expr4 ;
-    def visitExpr3(self, ctx: HLangParser.Expr3Context):
-        # print("----------Visiting expr3--------------")
+    def visitLiteral(self, ctx: HLangParser.LiteralContext):
+        """Visit literal."""
+        if ctx.INT_LIT():
+            return IntegerLiteral(int(ctx.INT_LIT().getText()))
+        elif ctx.FLOAT_LIT():
+            return FloatLiteral(float(ctx.FLOAT_LIT().getText()))
+        elif ctx.bool_literal():
+            return self.visit(ctx.bool_literal())
+        elif ctx.STR_LIT():
+            return StringLiteral(ctx.STR_LIT().getText())
+        elif ctx.array_literal():
+            return self.visit(ctx.array_literal())
     
-        if ctx.getChildCount() == 3:
-            operator = ctx.getChild(1).getText()
-            return BinaryOp(self.visit(ctx.expr3()), operator, self.visit(ctx.expr4()))
-        return self.visit(ctx.expr4()) 
-
-    # Visit a parse tree produced by HLangParser#expr4.
-    # expr4   : expr4 (LT | LTE | GT | GTE) expr5 | expr5 ;
-    def visitExpr4(self, ctx: HLangParser.Expr4Context):
-        # print("----------Visiting expr4--------------")
-        if ctx.getChildCount() == 3:
-            operator = ctx.getChild(1).getText()
-            return BinaryOp(self.visit(ctx.expr4()), operator, self.visit(ctx.expr5()))
-        return self.visit(ctx.expr5())
-
-    # Visit a parse tree produced by HLangParser#expr5.
-    # expr5   : expr5 (ADD | MINUS) expr6 | expr6 ;
-    def visitExpr5(self, ctx: HLangParser.Expr5Context):
-        # print("----------Visiting expr5--------------")
-        # debug_ctx(ctx, rule_name="visitExpr5", visitor=self)
-        if ctx.getChildCount() == 3:
-            operator = ctx.getChild(1).getText()
-            return BinaryOp(self.visit(ctx.expr5()), operator, self.visit(ctx.expr6()))
-        return self.visit(ctx.expr6())
-
-    # Visit a parse tree produced by HLangParser#expr6.
-    # expr6   : expr6 (MUL | DIV | MOD) expr7 | expr7 ;
-    def visitExpr6(self, ctx: HLangParser.Expr6Context):
-        # print("----------Visiting expr6--------------")
-        # debug_ctx(ctx, rule_name="visitExpr6", visitor=self)
-        if ctx.getChildCount() == 3:
-            operator = ctx.getChild(1).getText()
-            return BinaryOp(self.visit(ctx.expr6()), operator, self.visit(ctx.expr7()))
-        return self.visit(ctx.expr7())
-
-    # Visit a parse tree produced by HLangParser#expr7.
-    # expr7   : (NOT | MINUS | ADD) expr7 | expr8 ;
-    def visitExpr7(self, ctx: HLangParser.Expr7Context):
-        # print("----------Visiting expr7--------------")
-        if ctx.getChildCount() == 2:
-            operator = ctx.getChild(0).getText()
-            return UnaryOp(operator, self.visit(ctx.expr7()))
-        return self.visit(ctx.expr8())
-
-    # Visit a parse tree produced by HLangParser#expr8.
-    # expr8   : (LR expr RR ) | expr9 ;
-    def visitExpr8(self, ctx: HLangParser.Expr8Context):
-        # print("----------Visiting expr8--------------")
-        # debug_ctx(ctx, rule_name="visitExpr8", visitor=self)
-        if ctx.getChildCount() == 3:  # Either LR expr RR or LS expr RS
-            return self.visit(ctx.expr())
-        return self.visit(ctx.expr9())
-
-    # Visit a parse tree produced by HLangParser#expr9.
-    # expr9   : IDENTIFIER | func_call  | literal | array_access;
-    def visitExpr9(self, ctx: HLangParser.Expr9Context):
-        # print("----------Visiting expr9--------------")
-        # debug_ctx(ctx, rule_name="visitExpr9", visitor=self)
-        if ctx.IDENTIFIER():
-            return Identifier(ctx.IDENTIFIER().getText())
-        elif ctx.func_call():
-            return self.visit(ctx.func_call())
-        elif ctx.literal():
-            return self.visit(ctx.literal())
-        elif ctx.array_access():
-            return self.visit(ctx.array_access())
-        return None
-
-def debug_ctx(ctx, rule_name=None, visitor=None):
-    """
-    In thông tin debug cho bất kỳ ParserRuleContext nào.
-
-    Args:
-        ctx         : ParserRuleContext từ ANTLR.
-        rule_name   : Tên rule hiện tại (tự điền thủ công hoặc lấy từ class name).
-        visitor     : Optional - truyền visitor hiện tại để tự động lấy rule_name nếu không có.
-    """
-    import inspect
-
-    # Lấy tên rule từ tên hàm gọi nếu không truyền vào
-    if rule_name is None:
-        frame = inspect.currentframe().f_back
-        rule_name = frame.f_code.co_name  # vd: visitExpr9
-
-    print("\n\033[96m========== [Visiting {}] ==========\033[0m".format(rule_name))
-    print(f"📜 Text       : {ctx.getText()}")
-    print(f"🔍 Rule Type  : {type(ctx)}")
-
-    # In từng child token/rule
-    for i in range(ctx.getChildCount()):
-        child = ctx.getChild(i)
-        print(f"  Child[{i}]  : {child.getText():<20} ({type(child)})")
-
-    # In các thành phần con có thể gọi được (IDENTIFIER(), expr(), etc.)
-    print("\n🎯 Recognized Sub-rules:")
-    for attr in dir(ctx):
-        if callable(getattr(ctx, attr)) and not attr.startswith("__"):
-            try:
-                result = getattr(ctx, attr)()
-                if result:
-                    print(f"  {attr}() -> {result.getText()}")
-            except:
-                continue
-    print("\033[96m========================================\033[0m\n")
+    def visitBool_literal(self, ctx: HLangParser.Bool_literalContext):
+        """Visit boolean literal."""
+        return BooleanLiteral(ctx.getText() == 'true')
+    
+    def visitArray_literal(self, ctx: HLangParser.Array_literalContext):
+        """Visit array literal."""
+        elements = []
+        if ctx.expression():
+            elements = [self.visit(expr) for expr in ctx.expression()]
+        return ArrayLiteral(elements)

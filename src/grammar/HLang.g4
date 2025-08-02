@@ -24,181 +24,215 @@ options{
 	language=Python3;
 }
 
+//--------------------------------LEXER------------------------------//
+//KEYWORDS
+BOOL: 'bool';
+BREAK: 'break';
+CONST: 'const';
+CONTINUE: 'continue';
+IF: 'if';
+ELSE: 'else';
+FALSE: 'false';
+TRUE: 'true';
+FLOAT: 'float';
+FOR: 'for';
+FUNC: 'func';
+IN: 'in';
+INT: 'int';
+LET: 'let';
+RETURN: 'return';
+STRING: 'string';
+VOID: 'void';
+WHILE: 'while';
 
-program : constdecl* funcdecl* EOF ;
+//OPERATORS
+ADD: '+';
+SUB: '-';
+MUL: '*';
+DIV: '/';
+MOD: '%';
 
-//decl : vardecl SM;
-// Variable Declare
-//vardecl : (LET | CONST) IDENTIFIER typ_anno ASS expr ;
+EQUAL: '==';
+NOT_EQUAL: '!=';
+LT: '<';
+GT: '>';
+LTE: '<=';
+GTE: '>=';
 
-constdecl : CONST IDENTIFIER typ_anno ASS expr SM ;
-vardecl : LET IDENTIFIER typ_anno ASS expr ;
+AND: '&&';
+OR: '||';
+NOT: '!';
 
-typ_anno : COLON typ | ;
+ASSIGN: '=';
 
-typ : INT | FLOAT | BOOL | STRING | array_type;
-array_type : LS typ SM INT_LITERAL RS ;
+ARROW: '->';
+PIPELINE: '>>';
 
-// Function Declare
-funcdecl : FUNC IDENTIFIER LR paramlist RR ARROW return_typ body ;
-return_typ : typ | VOID ;
-paramlist : params | ;
-params : param CM params | param ;
-param : IDENTIFIER COLON typ ;
+DOT: '.';
 
-body : LC stmtlist RC ;
-stmtlist : stmt stmtlist | ; // Is body can empty ????
-stmt : vardecl SM  | expr SM | return SM | assign_stmt SM | condition_stmt 
-    | while_stmt | for_stmt |block_statement | break_stmt SM| continue_stmt SM;
+//SEPARATOR
+LRB: '(';
+RRB: ')';
 
-break_stmt : BREAK;
-continue_stmt : CONTINUE ;
-assign_stmt : lvalue ASS expr;
-lvalue : IDENTIFIER multi_access  | IDENTIFIER  ;
+LCB: '{';
+RCB: '}';
 
-condition_stmt : IF LR expr RR body elif_list else_part ;
-elif_list : ELSE IF LR expr RR body elif_list | ;
-else_part : ELSE body | ;
+LSB: '[';
+RSB: ']';
 
-while_stmt : WHILE LR expr RR body ;
-for_stmt : FOR LR IDENTIFIER IN expr RR body ;
+COMMA: ',';
+SEMICOLON: ';';
+COLON: ':';
 
-block_statement : LC stmtlist RC ;
-
-return : RETURN (expr | )  ;
-
-//Expression
-literal
-    : INT_LITERAL 
-    | FLOAT_LITERAL 
-    | TRUE 
-    | FALSE 
-    | STRING_LITERAL 
-    | array_literal
-    ;
-array_literal : LS arg_list RS ;
-//mutilaccess_array
-array_access : (IDENTIFIER | func_call | LR expr RR | literal) multi_access ;
-multi_access : index_access multi_access | index_access;
-index_access : LS expr RS ;
- //function call
-
-func_call: (IDENTIFIER | INT | FLOAT ) LR arg_list RR ;
-
-arg_list : args | ;
-args: expr CM args | expr;
-
-//expr
-expr    : expr PIPE expr1 | expr1 ;
-expr1   : expr1 OR expr2 | expr2 ;
-expr2   : expr2 AND expr3 | expr3 ;
-expr3   : expr3 (EQ | NEQ) expr4 | expr4 ;
-expr4   : expr4 (LT | LTE | GT | GTE) expr5 | expr5 ;
-expr5   : expr5 (ADD | MINUS) expr6 | expr6 ;
-expr6   : expr6 (MUL | DIV | MOD) expr7 | expr7 ;
-expr7   : (NOT | MINUS | ADD) expr7 | expr8 ;
-expr8   : (LR expr RR ) | expr9 ;
-expr9   : IDENTIFIER | func_call  | literal | array_access;
-//TOKEN
-//KEY_WORD
-BOOL : 'bool';
-BREAK : 'break';
-CONST : 'const';
-CONTINUE : 'continue';
-ELSE : 'else';
-FALSE : 'false';
-FLOAT : 'float';
-FOR : 'for';
-FUNC : 'func';
-IF : 'if';
-IN : 'in';
-INT : 'int';
-LET : 'let';
-RETURN : 'return';
-STRING : 'string';
-TRUE : 'true';
-VOID : 'void';
-WHILE : 'while';
-
-// OPERATOR
-
-// Arithmetic
-ADD : '+' ;
-MINUS : '-' ;
-MUL : '*' ;
-DIV : '/' ;
-MOD : '%' ;
-
-// Comparison
-EQ : '==' ;
-NEQ : '!=' ;
-LT : '<' ;
-LTE : '<=' ;
-GT : '>' ;
-GTE : '>=' ;
-
-// Logical
-AND : '&&' ;
-OR : '||' ;
-NOT : '!' ;
-
-// Assignment
-ASS : '=' ;
-
-// Type annotation
-COLON : ':' ;
-
-// Function return type
-ARROW : '->' ;
-
-// Pipeline
-PIPE : '>>' ;
-
-//SEPERATORS
-SM : ';';
-CM : ',';
-LR : '(';
-RR : ')';
-LC : '{';
-RC : '}';
-LS : '[';
-RS : ']';
-DOT : '.';
-
-IDENTIFIER: [a-zA-Z_] [a-zA-Z_0-9]* ;
-BOOL_LIT : TRUE | FALSE ;
-
+//IDENTIFIERS
+ID: [a-zA-Z_][a-zA-Z0-9_]*;
 
 //LITERAL
-//Integer literals
-INT_LITERAL : [0-9]+ ;
+INT_LIT: HEX | BIN | OCT | DEC;
+DEC: '0' | [1-9][0-9]* | '0'[0-9]+;
+BIN: '0' [Bb] [01]+;
+OCT: '0' [Oo] [0-7]+;
+HEX: '0' [Xx] [0-9A-Fa-f]+;
 
-//Float literals
-FLOAT_LITERAL : DIGIT+ '.' DIGIT* EXPONENT? ;
-fragment EXPONENT : [eE] [+-]? DIGIT+ ;
-fragment DIGIT : [0-9] ;
 
-// String literals
-STRING_LITERAL : '"' STRING_CHAR* '"' {
+fragment DIGIT: [0-9]+;
+fragment EXP: [Ee] [+-]? DIGIT;
+FLOAT_LIT: DIGIT [.] [0-9]* EXP?;
+
+fragment ESCAPE_SEQUENCE:  '\\' [ntr"\\];
+fragment CHAR_LIT: ~[\\"\n\t\r] | ESCAPE_SEQUENCE;
+STR_LIT: '"' CHAR_LIT* '"' {
+    # Remove quotes from the text
     self.text = self.text[1:-1]
 };
 
-fragment STRING_CHAR : ESC_SEQ | ASCII_PRINTABLE_CHAR;
-fragment ESC_SEQ : '\\n' | '\\t' | '\\r' | '\\\\' | '\\"' ;
-fragment ASCII_PRINTABLE_CHAR : ~["\\\u0000-\u001F\u007F-\uFFFF] ;
+//COMMENT, NEWLINE, WHITE SPACE
 
-// Comment
-LINE_COMMENT : '//' ~[\r\n]* -> skip ;
-BLOCK_COMMENT: '/*' (BLOCK_COMMENT |.)*? '*/' -> skip;
-WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs
+SINGLE_COMMENT: '//' ~[\r\n]* -> skip;
+MULTI_COMMENT: '/*' (MULTI_COMMENT |.)*? '*/' -> skip;
+WS : [ \t\r\n]+ -> skip ; // skip spaces, tabs, newlines
 
-fragment ILLEGAL_ESC_SEQ: '\\' ~[ntr"\\] ; // Identify escape sequence invalide
-
-ILLEGAL_ESCAPE: '"' STRING_CHAR* ILLEGAL_ESC_SEQ {
-    raise IllegalEscape(self.text[1:])  
+//ERROR TOKENS - Must be at the end, with ERROR_CHAR last
+UNCLOSE_STRING: '"' CHAR_LIT* ('\r\n' | '\n' | EOF) {
+    if(len(self.text) >= 2 and self.text[-1] == '\n' and self.text[-2] == '\r'):
+        raise UncloseString(self.text[1:-2] + '\r\n')
+    elif (self.text[-1] == '\n'):
+        raise UncloseString(self.text[1:-1] + '\n')
+    else:
+        raise UncloseString(self.text[1:])
 };
 
-UNCLOSE_STRING: '"' STRING_CHAR* (EOF | '\r'? '\n' | '\r') {
-    raise UncloseString(self.text[1:])
+fragment ILLEGAL_CHAR: '\\' ~[ntr"\\];
+ILLEGAL_ESCAPE: '"' CHAR_LIT* ILLEGAL_CHAR {
+    raise IllegalEscape(self.text[1:])
 };
-ERROR_CHAR: . {raise ErrorToken(self.text)} ; // If not match any rule
+
+ERROR_CHAR: . {raise ErrorToken(self.text)};
+
+//--------------------------------PARSER------------------------------//
+
+program: const_decl* func_decl* EOF;
+
+// Global constant declaration
+const_decl: CONST ID (COLON type_spec)? ASSIGN expression SEMICOLON;
+
+// Function declaration  
+func_decl: FUNC ID LRB parameter_list? RRB ARROW return_type LCB statement* RCB;
+
+parameter_list: parameter (COMMA parameter)*;
+parameter: ID COLON type_spec;
+
+// Type specifications
+type_spec: primitive_type 
+         | array_type;
+
+// Return type (allows void, but type_spec doesn't)
+return_type: primitive_type 
+           | array_type
+           | VOID;
+
+primitive_type: INT | FLOAT | BOOL | STRING;
+array_type: LSB type_spec SEMICOLON INT_LIT RSB;
+
+// Statements
+statement: var_decl
+         | assignment_stmt
+         | if_stmt
+         | while_stmt
+         | for_stmt
+         | return_stmt
+         | break_stmt
+         | continue_stmt
+         | expression_stmt
+         | block_stmt;
+
+// Variable declaration (only allowed inside functions)
+var_decl: LET ID (COLON type_spec)? ASSIGN expression SEMICOLON;
+
+// Assignment statement
+assignment_stmt: lvalue ASSIGN expression SEMICOLON;
+lvalue: ID
+      | ID array_access+;
+
+// Control flow statements
+if_stmt: IF LRB expression RRB block_stmt (ELSE IF LRB expression RRB block_stmt)* (ELSE block_stmt)?;
+
+while_stmt: WHILE LRB expression RRB block_stmt;
+
+for_stmt: FOR LRB ID IN expression RRB block_stmt;
+
+return_stmt: RETURN expression? SEMICOLON;
+
+break_stmt: BREAK SEMICOLON;
+
+continue_stmt: CONTINUE SEMICOLON;
+
+expression_stmt: expression SEMICOLON;
+
+block_stmt: LCB statement* RCB;
+
+// Expressions with precedence (lowest to highest)
+expression: pipeline_expr;
+
+pipeline_expr: logical_or_expr (PIPELINE logical_or_expr)*;
+
+logical_or_expr: logical_and_expr (OR logical_and_expr)*;
+
+logical_and_expr: equality_expr (AND equality_expr)*;
+
+equality_expr: relational_expr ((EQUAL | NOT_EQUAL) relational_expr)*;
+
+relational_expr: additive_expr ((LT | LTE | GT | GTE) additive_expr)*;
+
+additive_expr: multiplicative_expr ((ADD | SUB) multiplicative_expr)*;
+
+multiplicative_expr: unary_expr ((MUL | DIV | MOD) unary_expr)*;
+
+unary_expr: (NOT | SUB | ADD) unary_expr
+          | postfix_expr;
+
+// Allow type keywords to be used as function names
+type_keyword: INT | FLOAT | BOOL;
+
+argument_list: expression (COMMA expression)*;
+
+postfix_expr: type_keyword_func
+            | ID (LRB argument_list? RRB array_access* | array_access*)
+            | literal array_access*
+            | LRB expression RRB array_access*;
+
+// Type keyword function call
+type_keyword_func: {self._input.LA(2) == HLangParser.LRB}? type_keyword LRB argument_list? RRB;
+
+array_access: LSB expression RSB;
+
+// Literals
+literal: INT_LIT
+       | FLOAT_LIT
+       | bool_literal
+       | STR_LIT
+       | array_literal;
+
+bool_literal: TRUE | FALSE;
+
+array_literal: LSB (expression (COMMA expression)*)? RSB;

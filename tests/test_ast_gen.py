@@ -187,11 +187,8 @@ def test_030():
             a[a[2]][1+2] = 1;
         }
     """
-    expected = Program([], [FuncDecl("foo", [], VoidType(), [
-        Assignment(IdLValue("a"), IntegerLiteral(1)),
-        Assignment(ArrayAccessLValue(IdLValue("a"), IntegerLiteral(2)), BinaryOp(FunctionCall(Identifier("foo"), []), ">>", ArrayAccess(Identifier("a"), IntegerLiteral(2)))),
-        Assignment(ArrayAccessLValue(ArrayAccessLValue(IdLValue("a"), ArrayAccess(Identifier("a"), IntegerLiteral(2))), BinaryOp(IntegerLiteral(1), "+", IntegerLiteral(2))), IntegerLiteral(1))])])
-    assert str(ASTGenerator(source).generate()) == str(expected)
+    expected = "Program(funcs=[FuncDecl(foo, [], void, [Assignment(IdLValue(a), IntegerLiteral(1)), Assignment(ArrayAccessLValue(Identifier(a), IntegerLiteral(2)), BinaryOp(FunctionCall(Identifier(foo), []), >>, ArrayAccess(Identifier(a), IntegerLiteral(2)))), Assignment(ArrayAccessLValue(ArrayAccess(Identifier(a), ArrayAccess(Identifier(a), IntegerLiteral(2))), BinaryOp(IntegerLiteral(1), +, IntegerLiteral(2))), IntegerLiteral(1))])])"
+    assert str(ASTGenerator(source).generate()) == expected
 
 
 def test_035():
@@ -242,7 +239,7 @@ def test_040():
             }
         }
     };"""
-    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(BinaryOp(Identifier(x), >, IntegerLiteral(0)),BlockStmt([IfStmt(BinaryOp(Identifier(y), <, IntegerLiteral(10)),BlockStmt([Assignment(IdLValue(x), BinaryOp(Identifier(x), +, IntegerLiteral(1)))]),[],None)]),[],None)])])"
+    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(condition=BinaryOp(Identifier(x), >, IntegerLiteral(0)), then_stmt=BlockStmt([IfStmt(condition=BinaryOp(Identifier(y), <, IntegerLiteral(10)), then_stmt=BlockStmt([Assignment(IdLValue(x), BinaryOp(Identifier(x), +, IntegerLiteral(1)))]))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_041():
@@ -384,7 +381,7 @@ def test_059():
     source = """func main() -> void {
         arr[1] = 42;
     };"""
-    expected = "Program(funcs=[FuncDecl(main, [], void, [Assignment(ArrayAccessLValue(IdLValue(arr), IntegerLiteral(1)), IntegerLiteral(42))])])"
+    expected = "Program(funcs=[FuncDecl(main, [], void, [Assignment(ArrayAccessLValue(Identifier(arr), IntegerLiteral(1)), IntegerLiteral(42))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_060():
@@ -394,7 +391,7 @@ def test_060():
             x = 1;
         }
     };"""
-    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(FunctionCall(Identifier(foo), []),BlockStmt([Assignment(IdLValue(x), IntegerLiteral(1))]),[],None)])])"
+    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(condition=FunctionCall(Identifier(foo), []), then_stmt=BlockStmt([Assignment(IdLValue(x), IntegerLiteral(1))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_061():
@@ -404,7 +401,7 @@ def test_061():
             x = x + 1;
         } else {}
     };"""
-    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(BinaryOp(Identifier(x), >, IntegerLiteral(0)),BlockStmt([Assignment(IdLValue(x), BinaryOp(Identifier(x), +, IntegerLiteral(1)))]),[],BlockStmt([]))])])"
+    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(condition=BinaryOp(Identifier(x), >, IntegerLiteral(0)), then_stmt=BlockStmt([Assignment(IdLValue(x), BinaryOp(Identifier(x), +, IntegerLiteral(1)))]), else_stmt=BlockStmt([]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_062():
@@ -437,7 +434,7 @@ def test_065():
             x = 0;
         }
     };"""
-    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(UnaryOp(!, Identifier(flag)),BlockStmt([Assignment(IdLValue(x), IntegerLiteral(0))]),[],None)])])"
+    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(condition=UnaryOp(!, Identifier(flag)), then_stmt=BlockStmt([Assignment(IdLValue(x), IntegerLiteral(0))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_066():
@@ -447,7 +444,7 @@ def test_066():
             arr[i] = i * 2;
         }
     };"""
-    expected = "Program(funcs=[FuncDecl(main, [], void, [ForStmt(i, Identifier(arr), BlockStmt([Assignment(ArrayAccessLValue(IdLValue(arr), Identifier(i)), BinaryOp(Identifier(i), *, IntegerLiteral(2)))]))])])"
+    expected = "Program(funcs=[FuncDecl(main, [], void, [ForStmt(i, Identifier(arr), BlockStmt([Assignment(ArrayAccessLValue(Identifier(arr), Identifier(i)), BinaryOp(Identifier(i), *, IntegerLiteral(2)))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_067():
@@ -504,7 +501,7 @@ def test_073():
             x = 1;
         }
     };"""
-    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(BinaryOp(Identifier(x), ==, IntegerLiteral(0)),BlockStmt([Assignment(IdLValue(x), IntegerLiteral(1))]),[],None)])])"
+    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(condition=BinaryOp(Identifier(x), ==, IntegerLiteral(0)), then_stmt=BlockStmt([Assignment(IdLValue(x), IntegerLiteral(1))]))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_074():
@@ -526,7 +523,7 @@ def test_076():
     source = """func main() -> void {
         arr[0][1] = 5;
     };"""
-    expected = "Program(funcs=[FuncDecl(main, [], void, [Assignment(ArrayAccessLValue(ArrayAccessLValue(IdLValue(arr), IntegerLiteral(0)), IntegerLiteral(1)), IntegerLiteral(5))])])"
+    expected = "Program(funcs=[FuncDecl(main, [], void, [Assignment(ArrayAccessLValue(ArrayAccess(Identifier(arr), IntegerLiteral(0)), IntegerLiteral(1)), IntegerLiteral(5))])])"
     assert str(ASTGenerator(source).generate()) == expected
 
 def test_077():
@@ -632,10 +629,28 @@ def test_020():
         ], [])
     assert str(ASTGenerator(source).generate()) == str(expected)
 
-# Program(consts=[ConstDecl(a, ArrayAccess(Identifier(a), IntegerLiteral(1))), 
-#                 ConstDecl(a, ArrayAccess(ArrayAccess(Identifier(a), IntegerLiteral(2)), IntegerLiteral(3))), 
-#                 ConstDecl(a, ArrayAccess(Identifier(a), BinaryOp(ArrayAccess(Identifier(a), IntegerLiteral(2)), +, ArrayAccess(ArrayLiteral([IntegerLiteral(1), IntegerLiteral(2)]), IntegerLiteral(1)))))])
-
-# Program(consts=[ConstDecl(a, ArrayAccess(Identifier(a), IntegerLiteral(1))),
-#                 ConstDecl(a, ArrayAccess(ArrayAccess(Identifier(a), IntegerLiteral(2)), IntegerLiteral(3))), 
-#                 ConstDecl(a, ArrayAccess(Identifier(a), BinaryOp(ArrayAccess(Identifier(a), IntegerLiteral(2)), +, ArrayLiteral([IntegerLiteral(1), IntegerLiteral(2), IntegerLiteral(1)]))))])
+def test_090():
+    source = """
+    func main() -> void {
+        a[1][2] = 1;
+    }
+    """
+    expected = Program([], [FuncDecl("main", [], VoidType(), [Assignment(ArrayAccessLValue(ArrayAccess(Identifier("a"), IntegerLiteral(1)), IntegerLiteral(2)), IntegerLiteral(1))])])
+    assert str(ASTGenerator(source).generate()) == str(expected)
+def test_012():
+    """Test nested conditional"""
+    source = """func main() -> void {
+        if (a == "HieuThuHai") {
+            if (b == "Trinh") {
+                play("Track 1");
+            } else if (b == "Exit Sign") {
+                play(track2);
+            } else {
+                stop();
+            }
+        } else {
+            print("HieuThuHai co trinh");
+        }
+    }"""
+    expected = "Program(funcs=[FuncDecl(main, [], void, [IfStmt(condition=BinaryOp(Identifier(a), ==, StringLiteral('HieuThuHai')), then_stmt=BlockStmt([IfStmt(condition=BinaryOp(Identifier(b), ==, StringLiteral('Trinh')), then_stmt=BlockStmt([FunctionCall(Identifier(play), [StringLiteral('Track 1')])]), elif_branches=[(BinaryOp(Identifier(b), ==, StringLiteral('Exit Sign')), BlockStmt([FunctionCall(Identifier(play), [Identifier(track2)])]))], else_stmt=BlockStmt([FunctionCall(Identifier(stop), [])]))]), else_stmt=BlockStmt([FunctionCall(Identifier(print), [StringLiteral('HieuThuHai co trinh')])]))])])"
+    assert str(ASTGenerator(source).generate()) == expected
