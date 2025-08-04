@@ -13,7 +13,6 @@ from build.HLangParser import HLangParser
 from src.astgen.ast_generation import ASTGeneration
 from src.semantics.static_checker import StaticChecker
 from src.utils.error_listener import NewErrorListener
-from src.codegen.codegen import CodeGenerator as CodeGen
 from src.utils.nodes import *
 
 

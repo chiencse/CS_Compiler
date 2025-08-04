@@ -184,10 +184,14 @@ class CodeGenerator(ASTVisitor):
         )
 
     def visit_assignment(self, node: "Assignment", o: SubBody = None):
-        rc, rt = self.visit(node.value, Access(o.frame, o.sym))
-        self.emit.print_out(rc)
-        lc, lt = self.visit(node.lvalue, Access(o.frame, o.sym))
-        self.emit.print_out(lc)
+        if type(node.lvalue) is ArrayAccessLValue:
+            pass
+            ## TODO
+        else:
+            rc, rt = self.visit(node.value, Access(o.frame, o.sym))
+            self.emit.print_out(rc)
+            lc, lt = self.visit(node.lvalue, Access(o.frame, o.sym))
+            self.emit.print_out(lc)
         return o
 
     def visit_if_stmt(self, node: "IfStmt", o: Any = None):
@@ -211,6 +215,7 @@ class CodeGenerator(ASTVisitor):
     def visit_expr_stmt(self, node: "ExprStmt", o: SubBody = None):
         code, typ = self.visit(node.expr, Access(o.frame, o.sym))
         self.emit.print_out(code)
+        return o
 
     def visit_block_stmt(self, node: "BlockStmt", o: Any = None):
         pass
@@ -230,56 +235,116 @@ class CodeGenerator(ASTVisitor):
 
         return code, sym.type
 
-    def visit_array_access_lvalue(self, node: "ArrayAccessLValue", o: Any = None):
+    def visit_array_access_lvalue(self, node: "ArrayAccessLValue", o: Access = None):
+        ## TODO
         pass
-
     # Expressions
 
-    def visit_binary_op(self, node: "BinaryOp", o: Any = None):
-        pass
+    def visit_binary_op(self, node: "BinaryOp", o: Access = None):
 
+        if node.operator in ['||']:
+            label1 = o.frame.get_new_label()
+            label2 = o.frame.get_new_label()
+            ## TODO
+        if node.operator in ['&&']:
+            label1 = o.frame.get_new_label()
+            label2 = o.frame.get_new_label()
+            ## TODO 
+
+
+        codeLeft, typeLeft = self.visit(node.left, o)
+        if node.operator in ['+'] and type(typeLeft) in [StringType]:
+            _, typeRight = self.visit(node.right, Access(Frame("", ""), o.sym))
+
+            if type(typeRight) is IntType:
+                node.right = FunctionCall(Identifier("int2str"), [node.right])
+            ## TODO java/lang/String/concat
+
+        codeRight, typeRight = self.visit(node.right, o)
+        if node.operator in ['+', '-'] and type(typeLeft) in [FloatType, IntType]:
+            typeReturn = IntType() if type(typeLeft) is IntType and type(typeRight) is IntType else FloatType()
+            if type(typeReturn) is FloatType:
+                if type(typeLeft) is IntType:
+                    codeLeft += self.emit.emit_i2f(o.frame)
+                if type(typeRight) is IntType:
+                    codeRight += self.emit.emit_i2f(o.frame)
+            return codeLeft + codeRight + self.emit.emit_add_op(node.operator, typeReturn, o.frame), typeReturn
+        elif node.operator in ['*', '/']: pass
+            ## TODO      
+        if node.operator in ['%']: pass
+            ## TODO
+        if node.operator in ['==', '!=', '<', '>', '>=', '<='] and type(typeLeft) in [FloatType, IntType]: pass
+            ## TODO
+        if node.operator in ['==', '!='] and type(typeLeft) in [BoolType]: pass
+            ## TODO
+        if node.operator in ['==', '!='] and type(typeLeft) in [StringType]: pass
+            ## TODO java/lang/String/compareTo
+              
+        
     def visit_unary_op(self, node: "UnaryOp", o: Any = None):
-        pass
+        if node.operator == '!':
+            ## TODO
+            pass
+        code, type_return = self.visit(node.operand, o)
+        return (code if node.operator == '+' else code + self.emit.emit_neg_op(type_return , o.frame)), type_return 
 
     def visit_function_call(self, node: "FunctionCall", o: Access = None):
         function_name = node.function.name
-        function_symbol = next(filter(lambda x: x.name == function_name, o.sym), False)
+        if function_name == 'len':
+            ## TODO
+            pass
+        function_symbol: Symbol = next(filter(lambda x: x.name == function_name, o.sym), False)
         class_name = function_symbol.value.value
         argument_codes = []
         for argument in node.args:
             ac, at = self.visit(argument, Access(o.frame, o.sym))
             argument_codes += [ac]
-
         return (
             "".join(argument_codes)
             + self.emit.emit_invoke_static(
                 class_name + "/" + function_name, function_symbol.type, o.frame
             ),
-            VoidType(),
+            function_symbol.type.return_type
         )
 
-    def visit_array_access(self, node: "ArrayAccess", o: Any = None):
-        pass
+    def visit_array_access(self, node: "ArrayAccess", o: Access = None) -> tuple[str, Type]:
+        codeGen, arrType = self.visit(node.array, o)
+        ## TODO
+        retType = arrType.element_type
+        return codeGen, retType
+        
+    def visit_array_literal(self, node: "ArrayLiteral", o: Access = None) -> tuple[str, Type]:
+        frame = o.frame
+        ## TODO
+        if not type(type_element_array) is ArrayType:
+            ## TODO
+            pass
+        else:
+            codeGen += self.emit.emit_anew_array(type_element_array, frame)
+         
+        for idx, item in enumerate(node.elements):
+            ## TODO
+            pass
+        return codeGen, ArrayType(type_element_array, len(node.elements))  
 
-    def visit_array_literal(self, node: "ArrayLiteral", o: Any = None):
-        pass
+    def visit_identifier(self, node: "Identifier", o: Access = None) -> tuple[str, Type]:
+        sym = next(filter(lambda x: x.name == node.name, o.sym), False)
 
-    def visit_identifier(self, node: "Identifier", o: Any = None):
-        pass
+        ## TODO
 
     # Literals
 
-    def visit_integer_literal(self, node: "IntegerLiteral", o: Access = None):
+    def visit_integer_literal(self, node: "IntegerLiteral", o: Access = None) -> tuple[str, Type]:
         return self.emit.emit_push_iconst(node.value, o.frame), IntType()
 
-    def visit_float_literal(self, node: "FloatLiteral", o: Any = None):
+    def visit_float_literal(self, node: "FloatLiteral", o: Access = None) -> tuple[str, Type]:
+        ## TODO
         pass
 
-    def visit_boolean_literal(self, node: "BooleanLiteral", o: Any = None):
+    def visit_boolean_literal(self, node: "BooleanLiteral", o: Access = None) -> tuple[str, Type]:
+        ## TODO
         pass
 
-    def visit_string_literal(self, node: "StringLiteral", o: Any = None):
-        return (
-            self.emit.emit_push_const('"' + node.value + '"', StringType(), o.frame),
-            StringType(),
-        )
+    def visit_string_literal(self, node: "StringLiteral", o: Access = None) -> tuple[str, Type]:
+        return  self.emit.emit_push_const('"' + node.value + '"', StringType(), o.frame), StringType()
+        

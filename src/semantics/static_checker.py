@@ -79,6 +79,8 @@ class StaticChecker(ASTVisitor):
         self.current_function_type = None 
         self.parent_node = None  
         self.operator_pipe = False
+        self.array_access_lvalue = False
+        self.visit_global_func = False  # Flag to track if we are visiting a global function
 
     def lookup(self, name: str, lst: List, func):
         """
@@ -111,11 +113,11 @@ class StaticChecker(ASTVisitor):
         builtins = [
             SymbolEntry("print", FunctionType([StringType()], VoidType())),
             SymbolEntry("input", FunctionType([], StringType())),
-            SymbolEntry("str", FunctionType([IntType()], StringType())),
-            SymbolEntry("str", FunctionType([FloatType()], StringType())),
-            SymbolEntry("str", FunctionType([BoolType()], StringType())),
-            SymbolEntry("int", FunctionType([StringType()], IntType())),
-            SymbolEntry("float", FunctionType([StringType()], FloatType())),
+            SymbolEntry("int2str", FunctionType([IntType()], StringType())),
+            SymbolEntry("float2str", FunctionType([FloatType()], StringType())),
+            SymbolEntry("bool2str", FunctionType([BoolType()], StringType())),
+            SymbolEntry("str2int", FunctionType([StringType()], IntType())),
+            SymbolEntry("str2float", FunctionType([StringType()], FloatType())),
         ]
         global_scope = [builtins]
         print( str(node))
@@ -230,7 +232,7 @@ class StaticChecker(ASTVisitor):
     
     #! Check if type of lvalue is constant 
     def visit_assignment(self, node: 'Assignment', param: List[List['SymbolEntry']]):
-        # self.debug_visit_context(node, param)
+        self.debug_visit_context(node, param)
         self.parent_node = node 
         lvalue = self.visit(node.lvalue, param)
         rvalue = self.visit(node.value, param)
@@ -274,12 +276,13 @@ class StaticChecker(ASTVisitor):
             raise Undeclared(IdentifierMarker(), node.name)
     
     def visit_identifier(self, node: 'Identifier', param: List[List['SymbolEntry']]):
+        self.debug_visit_context(node, param)
         found_symbol = next((self.lookup(node.name, scope, lambda x: x.name)
                         for scope in param if self.lookup(node.name, scope, lambda x: x.name)),
                     None)
         if found_symbol :
             if isinstance(found_symbol.typ, FunctionType): raise Undeclared(IdentifierMarker(), node.name)
-            if found_symbol.is_const and isinstance(self.parent_node, Assignment):
+            if found_symbol.is_const and isinstance(self.parent_node, Assignment) and not self.array_access_lvalue:
                 raise TypeMismatchInStatement(self.parent_node)
             return found_symbol.typ
         else:
@@ -525,6 +528,7 @@ class StaticChecker(ASTVisitor):
         
         return ArrayType(first_type, len(node.elements))
     def visit_array_access_lvalue(self, node: 'ArrayAccessLValue', param: List[List['SymbolEntry']]):
+        self.array_access_lvalue = True
         array_type = self.visit(node.array, param)
         if not isinstance(array_type, ArrayType):
             raise TypeMismatchInExpression(node)
@@ -532,7 +536,7 @@ class StaticChecker(ASTVisitor):
         index_type = self.visit(node.index, param)
         if not isinstance(index_type, IntType):
             raise TypeMismatchInExpression(node)
-        
+        self.array_access_lvalue = False
         return array_type.element_type
     
 
