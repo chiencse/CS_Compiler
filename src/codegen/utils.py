@@ -13,13 +13,18 @@ from build.HLangParser import HLangParser
 from src.astgen.ast_generation import ASTGeneration
 from src.semantics.static_checker import StaticChecker
 from src.utils.error_listener import NewErrorListener
-from src.codegen.codegen import CodeGenerator as CodeGen
+# from src.codegen.codegen import CodeGenerator as CodeGen
 from src.utils.nodes import *
 from src.codegen.error import *
+from ..utils.nodes import Type
+from .frame import Frame
+
+
 
 
 class Tokenizer:
     def __init__(self, input_string):
+        from src.codegen.codegen import CodeGenerator as CodeGen
         self.input_stream = InputStream(input_string)
         self.lexer = HLangLexer(self.input_stream)
 
@@ -133,7 +138,9 @@ class CodeGenerator:
     def generate_and_run(self, source):
         """Generate code from AST and run it, return output"""
         ast = source
+        print("Generating code from AST...", type(ast))
         if isinstance(ast, str): 
+            print("Generating AST from source code...")
             ast_gen = ASTGenerator(ast)
             ast = ast_gen.generate()
         #try:
@@ -192,3 +199,65 @@ class CodeGenerator:
         #     return f"Code generation error: {str(e)}"
         # except IllegalRuntimeException as e:
         #     return f"Code generation error: {str(e)}"
+class FunctionType(Type):
+    """Function type node."""
+
+    def __init__(self, param_types, return_type):
+        super().__init__()
+        self.param_types = param_types
+        self.return_type = return_type
+
+    def accept(self, visitor, o=None):
+        return visitor.visit_function_type(self, o)
+
+
+class ClassType(Type):
+    """Class type node."""
+
+    def __init__(self, class_name):
+        super().__init__()
+        self.class_name = class_name
+
+    def accept(self, visitor, o=None):
+        return visitor.visit_class_type(self, o)
+
+
+class Value:
+    pass
+
+
+class Index(Value):
+    def __init__(self, value: int):
+        self.value = value
+
+
+class CName(Value):
+    def __init__(self, value: str):
+        self.value = value
+
+
+class Symbol:
+    def __init__(self, name: str, _type: Type, value: Value):
+        self.name = name
+        self.type = _type
+        self.value = value
+
+
+class Access:
+    def __init__(
+        self,
+        frame: Frame,
+        sym: list["Symbol"],
+        is_left: bool = False,
+        is_first: bool = False,
+    ):
+        self.frame = frame
+        self.sym = sym
+        self.is_left = is_left
+        self.is_first = is_first
+
+
+class SubBody:
+    def __init__(self, frame: Frame, sym: list["Symbol"]):
+        self.frame = frame
+        self.sym = sym

@@ -132,6 +132,9 @@ class CodeGenerator:
         """Generate code from AST and run it, return output"""
         try:
             # Change to runtime directory and generate code from AST
+            if isinstance(ast, str): 
+                ast_gen = ASTGenerator(ast)
+                ast = ast_gen.generate()
             original_dir = os.getcwd()
             os.chdir(self.runtime_dir)
             try:

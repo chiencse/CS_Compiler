@@ -672,6 +672,7 @@ class HLangBuilder:
                 str(self.venv_python3),
                 "-m",
                 "pytest",
+                "-vv",
                 "tests/test_codegen.py",
                 f"--html={codegen_report_dir}/index.html",
                 "--timeout=10",

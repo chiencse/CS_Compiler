@@ -158,6 +158,8 @@ class Emitter:
         elif type(typ) is StringType:
             frame.push()
             return self.jvm.emitLDC(in_)
+        elif type(typ) is BoolType:
+            return self.emit_push_iconst(1 if in_ == "true" else 0, frame)
         else:
             raise IllegalOperandException(in_)
 
@@ -176,15 +178,32 @@ class Emitter:
             IllegalOperandException: If type is not supported
         """
         frame.pop()
+       
         if type(in_) is IntType:
             return self.jvm.emitIALOAD()
+        if type(in_) is FloatType:
+            return self.jvm.emitFALOAD()
+        if type(in_) is BoolType:
+            return self.jvm.emitBALOAD()
         elif (
             type(in_) is ArrayType or type(in_) is ClassType or type(in_) is StringType
         ):
             return self.jvm.emitAALOAD()
         else:
             raise IllegalOperandException(str(in_))
-
+    def emit_arraylength(self, frame: Frame) -> str:
+        """
+        Emit arraylength instruction to get array length.
+        
+        Args:
+            frame: Method frame
+        
+        Returns:
+            Jasmin code for arraylength
+        """
+        frame.pop()  # Pop array reference
+        frame.push()  # Push length (int)
+        return "arraylength\n"
     def emit_astore(self, in_, frame) -> str:
         """
         Emit array store instruction.
@@ -204,6 +223,10 @@ class Emitter:
         frame.pop()
         if type(in_) is IntType:
             return self.jvm.emitIASTORE()
+        if type(in_) is FloatType:
+            return self.jvm.emitFASTORE()
+        if type(in_) is BoolType:
+            return self.jvm.emitBASTORE()
         elif (
             type(in_) is ArrayType or type(in_) is ClassType or type(in_) is StringType
         ):
@@ -252,6 +275,8 @@ class Emitter:
             return self.jvm.emitILOAD(index)
         elif type(in_type) is FloatType:
             return self.jvm.emitFLOAD(index)
+        elif type(in_type) is BoolType:
+            return self.jvm.emitILOAD(index)
         elif (
             type(in_type) is ArrayType
             or type(in_type) is ClassType
@@ -295,11 +320,12 @@ class Emitter:
             IllegalOperandException: If type is not supported
         """
         frame.pop()
-
         if type(in_type) is IntType:
             return self.jvm.emitISTORE(index)
         elif type(in_type) is FloatType:
             return self.jvm.emitFSTORE(index)
+        elif type(in_type) is BoolType:
+            return self.jvm.emitISTORE(index)
         elif (
             type(in_type) is ArrayType
             or type(in_type) is ClassType
@@ -457,9 +483,9 @@ class Emitter:
             Generated JVM instruction string
         """
         typ = in_
-        list(map(lambda x: frame.pop(), typ.partype))
+        list(map(lambda x: frame.pop(), typ.param_types))
         frame.pop()
-        if not type(typ) is VoidType:
+        if not type(typ.return_type) is VoidType:
             frame.push()
         return self.jvm.emitINVOKEVIRTUAL(lexeme, self.get_jvm_type(in_))
 
@@ -843,6 +869,26 @@ class Emitter:
             return self.jvm.emitIRETURN()
         elif type(in_) is VoidType:
             return self.jvm.emitRETURN()
+    def emit_anew_array(self, in_ , frame) -> str:
+        """
+        Emit bytecode to create a new array of reference type (e.g., String, Object, Class, Array).
+        
+        Parameters:
+        - jvm_type (str): the fully qualified internal JVM type of the array element.
+                        e.g., "java/lang/String", "mypackage/MyClass", "[I", etc.
+        - frame: the current frame used to update max stack (if needed).
+
+        Returns:
+        - str: JVM bytecode string for creating the reference type array.
+        """
+        if type(in_) is ArrayType:
+            jvm_type = "[" + self.get_jvm_type(in_.element_type)
+        elif type(in_) is ClassType:
+            jvm_type =  in_.class_name # e.g., "mypackage/MyClass"
+        elif type(in_) is StringType:
+            jvm_type = "java/lang/String"
+        frame.push()
+        return f"anewarray {jvm_type}\n"
 
     def emit_new_array(self, lexeme: str) -> str:
         """

@@ -105,62 +105,89 @@ class StaticChecker(ASTVisitor):
 
     def check_program(self, node: 'ASTNode'):
         self.visit(node, [])
-        if not self.main_func_declared_valid:
-            raise NoEntryPoint()
 
+    def infer_function_type_header(self, func_decl):
+        print(f"Infer function type header for {func_decl.name}")
+        scope_params = [[]] 
+        param_types = [self.visit(param_decl, scope_params).typ for param_decl in func_decl.params]
+        # return_type = self.visit(func_decl.return_type, None)  # Or func_decl.return_type directly if it's a Type
+        return FunctionType(param_types, func_decl.return_type)
     def visit_program(self, node: 'Program', param):
         # const_decls
         builtins = [
-            SymbolEntry("print", FunctionType([StringType()], VoidType())),
-            SymbolEntry("input", FunctionType([], StringType())),
-            SymbolEntry("int2str", FunctionType([IntType()], StringType())),
-            SymbolEntry("float2str", FunctionType([FloatType()], StringType())),
-            SymbolEntry("bool2str", FunctionType([BoolType()], StringType())),
-            SymbolEntry("str2int", FunctionType([StringType()], IntType())),
-            SymbolEntry("str2float", FunctionType([StringType()], FloatType())),
+            SymbolEntry("print", FunctionType([StringType()], VoidType()), is_const=True),
+            SymbolEntry("input", FunctionType([], StringType()), is_const=True),
+            SymbolEntry("int2str", FunctionType([IntType()], StringType()), is_const=True),
+            SymbolEntry("float2str", FunctionType([FloatType()], StringType()), is_const=True),
+            SymbolEntry("bool2str", FunctionType([BoolType()], StringType()), is_const=True),
+            SymbolEntry("str2int", FunctionType([StringType()], IntType()), is_const=True),
+            SymbolEntry("str2float", FunctionType([StringType()], FloatType()), is_const=True),
         ]
         global_scope = [builtins]
         print( str(node))
+        for func_decl in node.func_decls:
+            func_type = self.infer_function_type_header(func_decl)
+            sym = SymbolEntry(func_decl.name, func_type)
+            if self.lookup(func_decl.name, global_scope[0], lambda x: x.name):
+                raise Redeclared("Function", func_decl.name)
+            global_scope = [[sym] + global_scope[0]] + global_scope[1:]
+            if func_decl.name == "main" :
+                if isinstance(func_type.return_type, VoidType) and len(func_type.param_types) == 0:
+                    self.main_func_declared_valid = True
+                else:
+                    raise NoEntryPoint()
+            if func_decl.return_type is None:
+                raise TypeCannotBeInferred(node)
+        if not self.main_func_declared_valid:
+            raise NoEntryPoint()
         reduce(
-            lambda acc, ele: [([self.visit(ele, acc)] + acc[0])] + acc[1:], 
-            node.const_decls + node.func_decls, 
-            global_scope,
-        ) 
+            lambda acc, ele: (
+                [[result] + acc[0]] + acc[1:] if isinstance(result := self.visit(ele, acc), SymbolEntry) else acc
+            ),
+            node.const_decls + node.func_decls,
+            global_scope)
 
     def visit_const_decl(self, node: 'ConstDecl', param: List[List['SymbolEntry']]) -> SymbolEntry:
-        if self.lookup(node.name, param[0], lambda x: x.name):
-            raise Redeclared("Constant", node.name)
+        # self.debug_visit_context(node, param)
+        sym = self.lookup(node.name, param[0], lambda x: x.name)
+        if sym:
+            if not type(sym.typ) is FunctionType:
+                raise Redeclared("Constant", node.name)
+            elif sym.is_const:
+                raise Redeclared("Constant", node.name)
+            
         type_ = self.visit(node.value, param)
-        if not node.type_annotation and isinstance(type_, VoidType):
-            raise TypeCannotBeInferred(node)
+        if not node.type_annotation:
+            if isinstance(type_, VoidType) or  (isinstance(type_, ArrayType) and type_.size == 0):
+                raise TypeCannotBeInferred(node)
         if node.type_annotation and not self.is_compatible(node.type_annotation, type_):
             raise TypeMismatchInStatement(node)
         
         return SymbolEntry(node.name, type_, is_const=True)
     #! Function declared but not accessible
     def visit_func_decl(self, node: 'FuncDecl', param: List[List['SymbolEntry']]):
-        self.debug_visit_context(node, param)
+        # self.debug_visit_context(node, param)
 
         symbol = self.lookup(node.name, param[0], lambda x: x.name)
-        if symbol:
+        if not isinstance(symbol.typ, FunctionType):
             raise Redeclared("Function", node.name)
-        if node.name == "main" :
-            if not node.params and isinstance(node.return_type, VoidType):
-                self.main_func_declared_valid = True
-            else: 
-                raise NoEntryPoint()
-        if node.return_type is None:
-            raise TypeCannotBeInferred(node)
+        # if node.name == "main" :
+        #     if not node.params and isinstance(node.return_type, VoidType):
+        #         self.main_func_declared_valid = True
+        #     else: 
+        #         raise NoEntryPoint()
+        # if node.return_type is None:
+        #     raise TypeCannotBeInferred(node)
         init_scope = [[]] + param
         # Check parameters
         param_result = reduce(
             lambda acc, param : [acc[0] + [self.visit(param, acc)]] + acc[1:], node.params, init_scope
         )
       
-        param_types = [symbol.typ for symbol in param_result[0]]
-        print(f"Function {node.name} declared with parameters: {param_types}")
-        func_type = FunctionType(param_types, node.return_type)
-        param_result[0].insert(0, SymbolEntry(node.name, func_type)) # Insert function symbol at the beginning of the scope
+        # param_types = [symbol.typ for symbol in param_result[0]]
+        # print(f"Function {node.name} declared with parameters: {param_types}")
+        # func_type = FunctionType(param_types, node.return_type)
+        # param_result[0].insert(0, SymbolEntry(node.name, func_type)) # Insert function symbol at the beginning of the scope
         self.current_function_type = node.return_type
         reduce(
             lambda acc, stmt: [
@@ -169,7 +196,7 @@ class StaticChecker(ASTVisitor):
             node.body,
             param_result
         )
-        return SymbolEntry(node.name, func_type)
+        return None
     
     def visit_param(self, node: 'Param', param: List['SymbolEntry']) -> SymbolEntry:
         # self.debug_visit_context(node, param)
@@ -184,9 +211,9 @@ class StaticChecker(ASTVisitor):
         if self.lookup(node.name, param[0], lambda x: x.name):
             raise Redeclared("Variable", node.name)
         type_ = self.visit(node.value, param)
-        if not node.type_annotation and isinstance(type_, VoidType):
-            raise TypeCannotBeInferred(node)
-        print(f"Type annotation: {node.type_annotation}, Type: {type_}")
+        if not node.type_annotation:
+            if isinstance(type_, VoidType) or  (isinstance(type_, ArrayType) and type_.size == 0):
+                raise TypeCannotBeInferred(node)
         if node.type_annotation and not self.is_compatible(node.type_annotation, type_):
             raise TypeMismatchInStatement(node)
         
@@ -232,7 +259,7 @@ class StaticChecker(ASTVisitor):
     
     #! Check if type of lvalue is constant 
     def visit_assignment(self, node: 'Assignment', param: List[List['SymbolEntry']]):
-        self.debug_visit_context(node, param)
+        # self.debug_visit_context(node, param)
         self.parent_node = node 
         lvalue = self.visit(node.lvalue, param)
         rvalue = self.visit(node.value, param)
@@ -276,7 +303,7 @@ class StaticChecker(ASTVisitor):
             raise Undeclared(IdentifierMarker(), node.name)
     
     def visit_identifier(self, node: 'Identifier', param: List[List['SymbolEntry']]):
-        self.debug_visit_context(node, param)
+        # self.debug_visit_context(node, param)
         found_symbol = next((self.lookup(node.name, scope, lambda x: x.name)
                         for scope in param if self.lookup(node.name, scope, lambda x: x.name)),
                     None)
@@ -290,7 +317,7 @@ class StaticChecker(ASTVisitor):
     #! Valid: globalFunc declared later but in global scope
     #! TypeMismatchInStatement(<statement>) or TypeMismatchInExpression(<expression>)???
     def visit_function_call(self, node: 'FunctionCall', param: List[List['SymbolEntry']]):
-        self.debug_visit_context(node, param)
+        # self.debug_visit_context(node, param)
 
         if isinstance(node.function, Identifier):
             func_name = node.function.name
@@ -373,7 +400,7 @@ class StaticChecker(ASTVisitor):
             raise TypeMismatchInStatement(node)
 
     def visit_binary_op(self, node: 'BinaryOp', param: List[List['SymbolEntry']]): 
-        self.debug_visit_context(node, param)
+        # self.debug_visit_context(node, param)
         op = node.operator
         if op == '>>':
             # self.operator_pipe = True
@@ -456,7 +483,7 @@ class StaticChecker(ASTVisitor):
         right_type = self.visit(node.right, param)
             
         if op in ['+', '-', '*', '/', '%']:
-            if op == '+' and isinstance(left_type, StringType) and isinstance(right_type, StringType):
+            if op == '+' and isinstance(left_type, StringType) or isinstance(right_type, StringType):
                 return StringType()
             if isinstance(left_type, (IntType, FloatType)) and isinstance(right_type, (IntType, FloatType)):
                 if op == '%':
@@ -517,11 +544,9 @@ class StaticChecker(ASTVisitor):
         return array_type.element_type
 
     def visit_array_literal(self, node: 'ArrayLiteral', param: List[List['SymbolEntry']]): 
-        if not node.elements:
-            raise TypeCannotBeInferred(node)
-        
+
         elem_types = list(map(lambda elem: self.visit(elem, param), node.elements))
-        first_type = elem_types[0]
+        first_type = elem_types[0] if elem_types else None
         
         if any(not self.is_compatible(first_type, t) for t in elem_types[1:]):
             raise TypeMismatchInExpression(node)
@@ -553,16 +578,14 @@ class StaticChecker(ASTVisitor):
 
     # func support
     def is_compatible(self, expected: Type, actual: Type) -> bool:
+        print(f"Checking compatibility: expected={type(expected)}, actual={type(actual)}")
         if type(expected) != type(actual):
-            # if isinstance(expected, FloatType) and isinstance(actual, IntType):
-            #     return True
             return False
-        
         if isinstance(expected, ArrayType):
-            if not isinstance(actual, ArrayType):
-                return False
-            return (expected.size == actual.size and #? check size compatibility
-                    self.is_compatible(expected.element_type, actual.element_type))
+            if expected.size == actual.size and expected.size == 0:
+                return True
+            return (expected.size == actual.size and 
+                    self.is_compatible(expected.element_type, actual.element_type)) 
         
         return True
         
