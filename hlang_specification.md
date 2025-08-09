@@ -1530,24 +1530,6 @@ let result = processString(original);
 // original remains "data", result is "data processed"
 ```
 
-**Pass-by-Reference (Arrays):**
-- Applied to: All array types `[T; N]`
-- Behavior: Passes reference to original array
-- Modifications inside function affect the original array
-- Performance: Efficient for large data structures
-
-```hlang
-func fillArray(arr: [int; 3], value: int) -> void {
-    for (i in [0, 1, 2]) {
-        arr[i] = value;  // Modifies original array
-    }
-}
-
-let numbers = [1, 2, 3];
-fillArray(numbers, 99);
-// numbers is now [99, 99, 99]
-```
-
 ### Function Scope and Local Variables
 
 **Function Scope Rules:**
