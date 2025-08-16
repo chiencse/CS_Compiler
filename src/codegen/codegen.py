@@ -23,37 +23,76 @@ class CodeGenerator(ASTVisitor):
     def visit_program(self, node: "Program", o: Any = None):
         self.emit.print_out(self.emit.emit_prolog(self.class_name, "java/lang/Object"))
 
+        # Step 1: Collect function symbols
+        list_function = IO_SYMBOL_LIST + [
+            Symbol(
+                func.name,
+                FunctionType(
+                    [param.param_type for param in func.params],
+                    func.return_type
+                ),
+                CName(self.class_name)
+            )
+            for func in node.func_decls
+        ]
+        # Step 2: Collect constant symbols with type inference
+        list_const = []
+        dummy_frame = Frame("", "")  # Dummy frame for type inference
+        for const in node.const_decls:
+            code, typ = self.visit(const.value, Access(dummy_frame, list_function + list_const))
+            if const.type_annotation:
+                if not isinstance(typ, type(const.type_annotation)):
+                    raise IllegalOperandException(f"Type mismatch for constant {const.name}: expected {const.type_annotation}, got {typ}")
+                typ = const.type_annotation
+            list_const.append(Symbol(const.name, typ, CName(self.class_name)))
+            # Emit static field declaration
+            self.emit.print_out(
+                self.emit.emit_field(
+                    const.name, typ, True,  # Static field
+                )
+            )
+        # Step 3: Generate <clinit> for constant initialization
+        if list_const:
+            self.generate_method(
+                FuncDecl(
+                    "<clinit>", [], VoidType(),
+                    [Assignment(IdLValue(const.name), const.value) for const in node.const_decls]
+                ),
+                SubBody(Frame("<clinit>", VoidType()), list_function + list_const),
+            )
+
+        # Step 4: Process function declarations with full symbol table
         global_env = reduce(
             lambda acc, cur: self.visit(cur, acc),
             node.func_decls,
-            SubBody(None, IO_SYMBOL_LIST),
+            SubBody(None, list_function + list_const),
         )
 
+        # Step 5: Generate <init> method
         self.generate_method(
             FuncDecl("<init>", [], VoidType(), []),
-            SubBody(Frame("<init>", VoidType()), []),
+            SubBody(Frame("<init>", VoidType()), list_function + list_const),
         )
+
         self.emit.emit_epilog()
 
     def generate_method(self, node: "FuncDecl", o: SubBody = None):
         frame = o.frame
-
         is_init = node.name == "<init>"
+        is_clinit = node.name == "<clinit>"
         is_main = node.name == "main"
 
         param_types = list(map(lambda x: x.param_type, node.params))
         if is_main:
             param_types = [ArrayType(StringType(), 0)]
         return_type = node.return_type
-
         self.emit.print_out(
             self.emit.emit_method(
-                node.name, FunctionType(param_types, return_type), not is_init
+                node.name, FunctionType(param_types, return_type), not is_init and not is_clinit
             )
         )
 
         frame.enter_scope(True)
-
         from_label = frame.get_start_label()
         to_label = frame.get_end_label()
 
@@ -72,7 +111,7 @@ class CodeGenerator(ASTVisitor):
                     args_idx, "args", ArrayType(StringType(), 0), from_label, to_label
                 )
             )
-        else:
+        elif not is_clinit:
             o = reduce(lambda acc, cur: self.visit(cur, acc), node.params, o)
 
         self.emit.print_out(self.emit.emit_label(from_label, frame))
@@ -86,17 +125,30 @@ class CodeGenerator(ASTVisitor):
             )
             self.emit.print_out(self.emit.emit_invoke_special(frame))
         o = reduce(lambda acc, cur: self.visit(cur, acc), node.body, o)
-
-        if type(return_type) is VoidType:
+        if isinstance(return_type, VoidType):
             self.emit.print_out(self.emit.emit_return(VoidType(), frame))
 
         self.emit.print_out(self.emit.emit_label(to_label, frame))
         self.emit.print_out(self.emit.emit_end_method(frame))
         frame.exit_scope()
 
-    def visit_const_decl(self, node: "ConstDecl", o: Any = None):
-        pass
-
+    def visit_const_decl(self, node: "ConstDecl", o: SubBody = None):
+        # Type inference done in visit_program; here we only generate initialization code
+        code, typ = self.visit(node.value, Access(o.frame, o.sym))
+        if node.type_annotation and not isinstance(typ, type(node.type_annotation)):
+            raise IllegalOperandException(f"Type mismatch for constant {node.name}: expected {node.type_annotation}, got {typ}")
+        typ = node.type_annotation or typ
+        self.emit.print_out(
+            self.emit.emit_put_static(
+                self.class_name + "/" + node.name,
+                typ,
+                o.frame,
+            )
+        )
+        return SubBody(
+            None,
+            [Symbol(node.name, typ, CName(self.class_name))] + o.sym,
+        )
     def visit_func_decl(self, node: "FuncDecl", o: SubBody = None):
     
         frame = Frame(node.name, node.return_type)
@@ -164,30 +216,60 @@ class CodeGenerator(ASTVisitor):
             )
         )
         self.emit.print_out(code)
+        if isinstance(typ, ArrayType) and not isinstance(node.value, ArrayLiteral):
+            jvm_type = self.emit.get_jvm_type(typ)
+            self.emit.print_out(f"\tinvokevirtual {jvm_type}/clone()Ljava/lang/Object;\n")
+            self.emit.print_out(f"\tcheckcast {jvm_type}\n")
         self.emit.print_out(self.emit.emit_write_var(node.name, typ, idx, o.frame))
-        print(f"Writing variable {node.name} of type {typ} at index {idx}")
+        
         return SubBody(
             o.frame,
             [Symbol(node.name, typ, Index(idx))] + o.sym,
         )
 
     def visit_assignment(self, node: "Assignment", o: SubBody = None):
-        if type(node.lvalue) is ArrayAccessLValue:
-            arr_code, arr_type = self.visit(node.lvalue.array, o)
-            idx_code, idx_type = self.visit(node.lvalue.index, o)
-            val_code, val_type = self.visit(node.value, o)
+        frame = o.frame
+        if isinstance(node.lvalue, ArrayAccessLValue):
+            arr_code, arr_type = self.visit(node.lvalue.array, Access(frame, o.sym))
+            idx_code, idx_type = self.visit(node.lvalue.index, Access(frame, o.sym))
+            val_code, val_type = self.visit(node.value, Access(frame, o.sym))
             if not isinstance(val_type, type(arr_type.element_type)):
-                raise IllegalOperandException("Type mismatch in array assignment")
+                raise IllegalOperandException(f"Type mismatch in array assignment: expected {arr_type.element_type}, got {val_type}")
             self.emit.print_out(arr_code)
             self.emit.print_out(idx_code)
             self.emit.print_out(val_code)
-            self.emit.print_out(self.emit.emit_astore(arr_type.element_type, o.frame))
+            self.emit.print_out(self.emit.emit_astore(arr_type.element_type, frame))
+            return o
         else:
-            rc, rt = self.visit(node.value, Access(o.frame, o.sym))
-            lc, lt = self.visit(node.lvalue, Access(o.frame, o.sym))
-            self.emit.print_out(rc)
-            self.emit.print_out(lc)
-        return o
+            val_code, val_type = self.visit(node.value, Access(frame, o.sym))
+            sym = next(filter(lambda x: x.name == node.lvalue.name, o.sym), None)
+            if not sym:
+                raise IllegalOperandException(f"Identifier not found: {node.lvalue.name}")
+            if not isinstance(val_type, type(sym.type)):
+                raise IllegalOperandException(f"Type mismatch in assignment to {node.lvalue.name}: expected {sym.type}, got {val_type}")
+            self.emit.print_out(val_code)
+            if isinstance(val_type, ArrayType) and not isinstance(node.value, ArrayLiteral):
+                jvm_type = self.emit.get_jvm_type(val_type)
+                self.emit.print_out(f"\tinvokevirtual {jvm_type}/clone()Ljava/lang/Object;\n")
+                self.emit.print_out(f"\tcheckcast {jvm_type}\n")
+            if isinstance(sym.value, CName):
+                self.emit.print_out(
+                    self.emit.emit_put_static(
+                        f"{sym.value.value}/{node.lvalue.name}",
+                        sym.type,
+                        frame
+                    )
+                )
+            elif isinstance(sym.value, Index):
+                self.emit.print_out(
+                    self.emit.emit_write_var(
+                        node.lvalue.name, sym.type, sym.value.value, frame
+                    )
+                )
+            else:
+                raise IllegalOperandException(f"Invalid assignment target: {node.lvalue.name}")
+            return o
+        raise IllegalOperandException("Assignment target must be IdLValue or ArrayAccessLValue")
 
     def visit_if_stmt(self, node: "IfStmt", o: SubBody = None):
         frame = o.frame
@@ -316,8 +398,8 @@ class CodeGenerator(ASTVisitor):
 
         return o
     def visit_return_stmt(self, node: "ReturnStmt", o: SubBody = None):
-        if node.expr:
-            code, typ = self.visit(node.expr, Access(o.frame, o.sym))
+        if node.value:
+            code, typ = self.visit(node.value, Access(o.frame, o.sym))
             self.emit.print_out(code)
             self.emit.print_out(self.emit.emit_return(typ, o.frame))
         else:
@@ -342,7 +424,9 @@ class CodeGenerator(ASTVisitor):
     def visit_block_stmt(self, node: "BlockStmt", o: SubBody = None):
         frame = o.frame
         frame.enter_scope(False)
+        self.emit.print_out(self.emit.emit_label(frame.get_start_label(), frame))  # Emit start label
         o = reduce(lambda acc, cur: self.visit(cur, acc), node.statements, o)
+        self.emit.print_out(self.emit.emit_label(frame.get_end_label(), frame))  # Emit end label
         frame.exit_scope()
         return o
 
@@ -395,13 +479,19 @@ class CodeGenerator(ASTVisitor):
                 result.append(self.emit.emit_and_op(frame))
 
             return "".join(result), BoolType()
-
         if op == '+' and isinstance(type_left, StringType):
             if isinstance(type_right, IntType):
                 node.right = FunctionCall(Identifier("int2str"), [node.right])
-                code_right, _ = self.visit(node.right, o)
-            else:
-                code_right, _ = self.visit(node.right, o)
+            elif isinstance(type_right, FloatType):
+                node.right = FunctionCall(Identifier("float2str"), [node.right])
+            elif isinstance(type_right, BoolType):
+                node.right = FunctionCall(Identifier("bool2str"), [node.right])
+            code_right, ct = self.visit(node.right, o)
+            # if isinstance(type_right, (IntType, FloatType, BoolType)):
+            #     node.right = FunctionCall(Identifier("int2str"), [node.right])
+            #     code_right, _ = self.visit(node.right, o)
+            # else:
+            #     code_right, _ = self.visit(node.right, o)
             return (
                 code_left + code_right + 
                 self.emit.emit_invoke_virtual(
@@ -437,27 +527,37 @@ class CodeGenerator(ASTVisitor):
 
         if op in ['==', '!=', '<', '>', '>=', '<=']:
             type_return = BoolType()
-
-            if isinstance(type_left, (IntType, FloatType, BoolType)):
+            # Handle mixed IntType and FloatType comparisons
+            if isinstance(type_left, (IntType, FloatType)) and isinstance(type_right, (IntType, FloatType)):
+                if isinstance(type_left, IntType) and isinstance(type_right, FloatType):
+                    code_left += self.emit.emit_i2f(frame)
+                    type_left = FloatType()
+                elif isinstance(type_left, FloatType) and isinstance(type_right, IntType):
+                    code_right += self.emit.emit_i2f(frame)
+                    type_right = FloatType()
                 return (
-                    code_left + code_right + 
-                    self.emit.emit_re_op(node.operator, type_left, frame),
+                    code_left + code_right +
+                    self.emit.emit_re_op(op, type_left, frame),
                     type_return
                 )
-
-            elif isinstance(type_left, StringType):
+            elif isinstance(type_left, BoolType) and isinstance(type_right, BoolType):
+                return (
+                    code_left + code_right +
+                    self.emit.emit_re_op(op, IntType(), frame),  # Treat BoolType as IntType
+                    type_return
+                )
+            elif isinstance(type_left, StringType) and isinstance(type_right, StringType):
                 compare_code = self.emit.emit_invoke_virtual(
                     "java/lang/String/compareTo",
                     FunctionType([StringType()], IntType()),
                     frame
                 )
                 comparison_value = self.emit.emit_push_iconst(0, frame)
-                re_op_code = self.emit.emit_re_op(node.operator, IntType(), frame)
+                re_op_code = self.emit.emit_re_op(op, IntType(), frame)
                 return (
                     code_left + code_right + compare_code + comparison_value + re_op_code,
                     type_return
                 )
-
         raise IllegalOperandException(node.operator)
 
     def visit_unary_op(self, node: "UnaryOp", o: Access = None):
@@ -468,7 +568,17 @@ class CodeGenerator(ASTVisitor):
 
     def visit_function_call(self, node: "FunctionCall", o: Access = None):
         function_name = node.function.name
-
+        if function_name == "len":
+            if len(node.args) != 1:
+                raise IllegalOperandException("len function requires exactly one argument")
+            arg_code, arg_type = self.visit(node.args[0], Access(o.frame, o.sym))
+            if not isinstance(arg_type, ArrayType):
+                raise IllegalOperandException("len function requires an array argument")
+            return (
+                arg_code + self.emit.emit_arraylength(o.frame),
+                IntType()
+            )
+          
         function_symbol: Symbol = next(filter(lambda x: x.name == function_name, o.sym), None)
         if not function_symbol:
             raise IllegalOperandException(function_name)
@@ -504,6 +614,8 @@ class CodeGenerator(ASTVisitor):
             code_gen += self.emit.emit_new_array("int")
         elif type(type_element_array) is FloatType:
             code_gen += self.emit.emit_new_array("float")
+        elif type(type_element_array) is BoolType:
+            code_gen += self.emit.emit_new_array("boolean")
         elif isinstance(type_element_array, (ArrayType, StringType, ClassType)):
             code_gen += self.emit.emit_anew_array(type_element_array, frame)
         else:
@@ -518,11 +630,10 @@ class CodeGenerator(ASTVisitor):
         
         return code_gen, ArrayType(type_element_array, len(node.elements))
 
-    def visit_identifier(self, node: "Identifier", o: Access = None) -> tuple[str, Type]:
+    def visit_identifier(self, node: "Identifier", o: Access = None) -> tuple[str, Type]:       
         sym = next(filter(lambda x: x.name == node.name, o.sym), None)
         if not sym:
             raise IllegalOperandException(node.name)
-        
         if type(sym.value) is Index:
             return self.emit.emit_read_var(sym.name, sym.type, sym.value.value, o.frame), sym.type
         elif type(sym.value) is CName:

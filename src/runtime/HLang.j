@@ -5,52 +5,42 @@
 .method public static main([Ljava/lang/String;)V
 .var 0 is args [Ljava/lang/String; from Label0 to Label1
 Label0:
-.var 1 is arr [[Ljava/lang/String; from Label0 to Label1
-	iconst_2
-anewarray [Ljava/lang/String;
+.var 1 is a [I from Label0 to Label1
+	iconst_3
+	newarray int
 	dup
 	iconst_0
-	iconst_2
-anewarray java/lang/String
-	dup
-	iconst_0
-	ldc "a"
-	aastore
-	dup
 	iconst_1
-	ldc "b"
-	aastore
-	aastore
+	iastore
 	dup
 	iconst_1
 	iconst_2
-anewarray java/lang/String
+	iastore
 	dup
-	iconst_0
-	ldc "c"
-	aastore
-	dup
-	iconst_1
-	ldc "d"
-	aastore
-	aastore
+	iconst_2
+	iconst_3
+	iastore
 	astore_1
+.var 2 is b [I from Label0 to Label1
 	aload_1
-	iconst_1
-	aaload
+	invokevirtual [I/clone()Ljava/lang/Object;
+	checkcast [I
+	astore_2
+	aload_2
 	iconst_0
-	ldc "cd"
-	aastore
+	bipush 10
+	iastore
+	ldc ""
 	aload_1
-	iconst_1
-	aaload
 	iconst_0
-	aaload
+	iaload
+	invokestatic io/int2str(I)Ljava/lang/String;
+	invokevirtual java/lang/String/concat(Ljava/lang/String;)Ljava/lang/String;
 	invokestatic io/print(Ljava/lang/String;)V
 	return
 Label1:
-.limit stack 15
-.limit locals 2
+.limit stack 5
+.limit locals 3
 .end method
 
 .method public <init>()V

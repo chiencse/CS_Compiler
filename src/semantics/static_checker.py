@@ -79,7 +79,6 @@ class StaticChecker(ASTVisitor):
         self.current_function_type = None 
         self.parent_node = None  
         self.operator_pipe = False
-        self.array_access_lvalue = False
         self.visit_global_func = False  # Flag to track if we are visiting a global function
 
     def lookup(self, name: str, lst: List, func):
@@ -107,7 +106,6 @@ class StaticChecker(ASTVisitor):
         self.visit(node, [])
 
     def infer_function_type_header(self, func_decl):
-        print(f"Infer function type header for {func_decl.name}")
         scope_params = [[]] 
         param_types = [self.visit(param_decl, scope_params).typ for param_decl in func_decl.params]
         # return_type = self.visit(func_decl.return_type, None)  # Or func_decl.return_type directly if it's a Type
@@ -115,16 +113,19 @@ class StaticChecker(ASTVisitor):
     def visit_program(self, node: 'Program', param):
         # const_decls
         builtins = [
-            SymbolEntry("print", FunctionType([StringType()], VoidType()), is_const=True),
-            SymbolEntry("input", FunctionType([], StringType()), is_const=True),
-            SymbolEntry("int2str", FunctionType([IntType()], StringType()), is_const=True),
-            SymbolEntry("float2str", FunctionType([FloatType()], StringType()), is_const=True),
-            SymbolEntry("bool2str", FunctionType([BoolType()], StringType()), is_const=True),
-            SymbolEntry("str2int", FunctionType([StringType()], IntType()), is_const=True),
-            SymbolEntry("str2float", FunctionType([StringType()], FloatType()), is_const=True),
+            SymbolEntry("print", FunctionType([StringType()], VoidType())),
+            SymbolEntry("input", FunctionType([], StringType())),
+            SymbolEntry("int2str", FunctionType([IntType()], StringType())),
+            SymbolEntry("float2str", FunctionType([FloatType()], StringType())),
+            SymbolEntry("bool2str", FunctionType([BoolType()], StringType())),
+            SymbolEntry("str2int", FunctionType([StringType()], IntType())),
+            SymbolEntry("str2float", FunctionType([StringType()], FloatType())),
         ]
         global_scope = [builtins]
-        print( str(node))
+        for constdecl in node.const_decls:
+            sym = self.visit_const_decl(constdecl, global_scope)
+            global_scope = [[sym] + global_scope[0]] + global_scope[1:]
+        # print( str(node))
         for func_decl in node.func_decls:
             func_type = self.infer_function_type_header(func_decl)
             sym = SymbolEntry(func_decl.name, func_type)
@@ -144,18 +145,14 @@ class StaticChecker(ASTVisitor):
             lambda acc, ele: (
                 [[result] + acc[0]] + acc[1:] if isinstance(result := self.visit(ele, acc), SymbolEntry) else acc
             ),
-            node.const_decls + node.func_decls,
+            node.func_decls,
             global_scope)
 
     def visit_const_decl(self, node: 'ConstDecl', param: List[List['SymbolEntry']]) -> SymbolEntry:
         # self.debug_visit_context(node, param)
         sym = self.lookup(node.name, param[0], lambda x: x.name)
         if sym:
-            if not type(sym.typ) is FunctionType:
-                raise Redeclared("Constant", node.name)
-            elif sym.is_const:
-                raise Redeclared("Constant", node.name)
-            
+            raise Redeclared("Constant", node.name)
         type_ = self.visit(node.value, param)
         if not node.type_annotation:
             if isinstance(type_, VoidType) or  (isinstance(type_, ArrayType) and type_.size == 0):
@@ -168,9 +165,9 @@ class StaticChecker(ASTVisitor):
     def visit_func_decl(self, node: 'FuncDecl', param: List[List['SymbolEntry']]):
         # self.debug_visit_context(node, param)
 
-        symbol = self.lookup(node.name, param[0], lambda x: x.name)
-        if not isinstance(symbol.typ, FunctionType):
-            raise Redeclared("Function", node.name)
+        # symbol = self.lookup(node.name, param[0], lambda x: x.name)
+        # if not isinstance(symbol.typ, FunctionType):
+        #     raise Redeclared("Function", node.name)
         # if node.name == "main" :
         #     if not node.params and isinstance(node.return_type, VoidType):
         #         self.main_func_declared_valid = True
@@ -292,10 +289,13 @@ class StaticChecker(ASTVisitor):
         ] + acc[1:], node.statements,  new_scope)
     
     def visit_id_lvalue(self, node: 'IdLValue', param: List[List['SymbolEntry']]):
+        # self.debug_visit_context(node, param)
         found_symbol = next((self.lookup(node.name, scope, lambda x: x.name)
                         for scope in param if self.lookup(node.name, scope, lambda x: x.name)),
                     None)
         if found_symbol:
+            if isinstance(found_symbol.typ, FunctionType):
+                raise Undeclared(IdentifierMarker(), node.name)
             if found_symbol.is_const and isinstance(self.parent_node, Assignment):
                 raise TypeMismatchInStatement(self.parent_node)
             return found_symbol.typ
@@ -309,7 +309,7 @@ class StaticChecker(ASTVisitor):
                     None)
         if found_symbol :
             if isinstance(found_symbol.typ, FunctionType): raise Undeclared(IdentifierMarker(), node.name)
-            if found_symbol.is_const and isinstance(self.parent_node, Assignment) and not self.array_access_lvalue:
+            if found_symbol.is_const and isinstance(self.parent_node, Assignment) :
                 raise TypeMismatchInStatement(self.parent_node)
             return found_symbol.typ
         else:
@@ -350,9 +350,6 @@ class StaticChecker(ASTVisitor):
 
 
 
-
-    # TASK 2 BTL3
-
     def visit_if_stmt(self, node: 'IfStmt', param: List[List['SymbolEntry']]): 
         cond_type = self.visit(node.condition, param)
         if not isinstance(cond_type, BoolType):
@@ -392,7 +389,7 @@ class StaticChecker(ASTVisitor):
         self.parent_node = node
         expr_type = self.visit(node.expr, param)
         self.parent_node = None
-        print(f"Expr type: {type(expr_type)}, Expr: {node.expr}")
+        # print(f"Expr type: {type(expr_type)}, Expr: {node.expr}")
         # if isinstance(node.expr, FunctionCall):
         #     if not isinstance(expr_type.return_type, VoidType):
         #         raise TypeMismatchInStatement(node)
@@ -483,7 +480,9 @@ class StaticChecker(ASTVisitor):
         right_type = self.visit(node.right, param)
             
         if op in ['+', '-', '*', '/', '%']:
-            if op == '+' and isinstance(left_type, StringType) or isinstance(right_type, StringType):
+            if op == '+' and isinstance(left_type, StringType):
+                if isinstance(left_type, ArrayType) or isinstance(right_type, ArrayType):
+                    raise TypeMismatchInExpression(node)
                 return StringType()
             if isinstance(left_type, (IntType, FloatType)) and isinstance(right_type, (IntType, FloatType)):
                 if op == '%':
@@ -503,7 +502,9 @@ class StaticChecker(ASTVisitor):
             # if isinstance(left_type, StringType) and isinstance(right_type, StringType):
             #     return BoolType()
             raise TypeMismatchInExpression(node)
-        if op in ['==', '!=']:
+        if op in ['==', '!=']: #! Check if both are same type, int -float Mixed type comparisons (with type promotion)
+            if (isinstance(left_type, (IntType, FloatType)) and isinstance(right_type, (IntType, FloatType))):
+                return BoolType()
             if type(left_type) == type(right_type):  
                 return BoolType()
             raise TypeMismatchInExpression(node)
@@ -553,7 +554,6 @@ class StaticChecker(ASTVisitor):
         
         return ArrayType(first_type, len(node.elements))
     def visit_array_access_lvalue(self, node: 'ArrayAccessLValue', param: List[List['SymbolEntry']]):
-        self.array_access_lvalue = True
         array_type = self.visit(node.array, param)
         if not isinstance(array_type, ArrayType):
             raise TypeMismatchInExpression(node)
@@ -561,7 +561,6 @@ class StaticChecker(ASTVisitor):
         index_type = self.visit(node.index, param)
         if not isinstance(index_type, IntType):
             raise TypeMismatchInExpression(node)
-        self.array_access_lvalue = False
         return array_type.element_type
     
 
@@ -578,7 +577,7 @@ class StaticChecker(ASTVisitor):
 
     # func support
     def is_compatible(self, expected: Type, actual: Type) -> bool:
-        print(f"Checking compatibility: expected={type(expected)}, actual={type(actual)}")
+        # print(f"Checking compatibility: expected={type(expected)}, actual={type(actual)}")
         if type(expected) != type(actual):
             return False
         if isinstance(expected, ArrayType):

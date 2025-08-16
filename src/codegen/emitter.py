@@ -33,6 +33,21 @@ class Emitter:
         )
         self.buff: List[str] = []
         self.jvm = JasminCode()
+    def emit_field(self, name: str, typ: Type, is_static: bool) -> str:
+        """
+        Emit static or instance field declaration.
+        
+        Args:
+            name: Field name
+            typ: Field type
+            is_static: Whether the field is static
+        
+        Returns:
+            Jasmin code for field declaration
+        """
+        jtype = self.get_jvm_type(typ)
+        modifier = "static " if is_static else ""
+        return f".field {modifier}{name} {jtype}\n"
 
     def get_jvm_type(self, in_type) -> str:
         """
@@ -645,7 +660,7 @@ class Emitter:
 
         frame.pop()
         frame.pop()
-        if type(in_) is IntType:
+        if isinstance(in_, (IntType, BoolType)):
             if op == ">":
                 result.append(self.jvm.emitIFICMPLE(label_f))
             elif op == ">=":

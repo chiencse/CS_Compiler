@@ -1753,8 +1753,8 @@ func main() -> void {
     a[1][1] = 1; // const
 }
 """
-    # expected = TypeMismatchInStatement(Assignment(ArrayAccessLValue(ArrayAccess(Identifier("a"), IntegerLiteral(1)), IntegerLiteral(1)), IntegerLiteral(1)))
-    expected= "Static checking passed"
+    expected = TypeMismatchInStatement(Assignment(ArrayAccessLValue(ArrayAccess(Identifier("a"), IntegerLiteral(1)), IntegerLiteral(1)), IntegerLiteral(1)))
+    # expected= "Static checking passed"
     assert Checker(source).check_from_source() == str(expected)
 
 def test_155a():
@@ -2302,17 +2302,17 @@ def test_047a():
     """
         expected = "Static checking passed"
         assert Checker(source).check_from_source() == expected
-def test_071a():
-        source = """
-    const a: [int; 3] = [1,2,3];
-    func main() -> void {
-        let b : [int; 3] = [1,2,3];
-        let i = a[1];
-        a[1] = 1; // const
-    }
-    """
-        expected = "Static checking passed"
-        assert Checker(source).check_from_source() == expected
+# def test_071a():
+#         source = """
+#     const a: [int; 3] = [1,2,3];
+#     func main() -> void {
+#         let b : [int; 3] = [1,2,3];
+#         let i = a[1];
+#         a[1] = 1; // const
+#     }
+#     """
+#         expected = "Static checking passed"
+#         assert Checker(source).check_from_source() == expected
 
 def test_020a():
         source = """
@@ -2360,7 +2360,8 @@ def test_196():
     }
     func main() -> void {}
     """
-        expected = TypeMismatchInStatement(Assignment(IdLValue("a"), ArrayLiteral([IntegerLiteral(1), IntegerLiteral(3)])))
+        # expected = TypeMismatchInStatement(Assignment(IdLValue("a"), ArrayLiteral([IntegerLiteral(1), IntegerLiteral(3)])))
+        expected = "Type Mismatch In Statement: Assignment(ArrayAccessLValue(Identifier(a), IntegerLiteral(1)), IntegerLiteral(2))"
         assert Checker(source).check_from_source() == str(expected)
 def test_188():
         source = """
@@ -2396,16 +2397,16 @@ def test_054a():
     """
         expected = "Static checking passed"
         assert Checker(source).check_from_source() == str(expected)
-def test_071a():
-        source = """
-    const a: [int; 3] = [1,2,3];
-    func main() -> void {
-        let i = a[1];
-        a[1] = 1; // const
-    }
-    """
-        expected = "Static checking passed"
-        assert Checker(source).check_from_source() == str(expected)
+# def test_071a():
+#         source = """
+#     const a: [int; 3] = [1,2,3];
+#     func main() -> void {
+#         let i = a[1];
+#         a[1] = 1; // const
+#     }
+#     """
+#         expected = "Static checking passed"
+#         assert Checker(source).check_from_source() == str(expected)
 def test_022a():
         source = """
     const main = 1;
@@ -2431,3 +2432,61 @@ def test_043a():
     """
         expected = "Undeclared Function: goo"
         assert Checker(source).check_from_source() == str(expected)
+def test_052a():
+        source = """
+    const foo = 1;
+    func main() -> void {
+        main = 1;
+    }
+    """
+        expected = "Undeclared Identifier: main"
+        assert Checker(source).check_from_source() == str(expected)
+def test_106a():
+        source = """
+    func main() -> void {
+        let a: bool = 1 == 1;
+        let b: bool = 1.0 != 1.0;
+        let c: bool = 1 == 1.0;
+        let d: bool = 1.0 != 1;
+        let e: bool = "a" != "b";
+        let f: bool = true == false;
+    }
+    """
+        expected = "Static checking passed"
+        assert Checker(source).check_from_source() == str(expected)
+def test_154a():
+        source = """
+    func main() -> void {
+        1 + "A";
+    }
+    """
+        expected = TypeMismatchInExpression(BinaryOp(IntegerLiteral(1), "+", StringLiteral('A')))
+        assert Checker(source).check_from_source() == str(expected)
+def test_197a():
+        source = """
+    const a = [];
+    func main() -> void {}
+    """
+        expected = TypeCannotBeInferred(ConstDecl("a", None, ArrayLiteral([])))
+        assert Checker(source).check_from_source() == str(expected)
+
+def test_210():
+    source = """
+func foo(a: [[[[[int; 2]; 2]; 2]; 2]; 2]) -> void {
+    a[0][1][2][3][4] = 2;
+}
+func main() -> void {
+    
+}
+"""
+    expected =  TypeMismatchInStatement(Assignment(ArrayAccessLValue(ArrayAccess(ArrayAccess(ArrayAccess(ArrayAccess(Identifier("a"), IntegerLiteral(0)), IntegerLiteral(1)), IntegerLiteral(2)), IntegerLiteral(3)), IntegerLiteral(4)), IntegerLiteral(2)))
+    assert Checker(source).check_from_source() == str(expected)
+def test_207():
+    source = """
+const a = [1,2];
+func main() -> void {
+    a[1] = 1;
+}
+"""
+    expected =  TypeMismatchInStatement(Assignment(ArrayAccessLValue(Identifier("a"), IntegerLiteral(1)), IntegerLiteral(1)))
+    assert Checker(source).check_from_source() == str(expected)

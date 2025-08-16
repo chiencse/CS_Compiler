@@ -135,6 +135,7 @@ class CodeGenerator:
             if isinstance(ast, str): 
                 ast_gen = ASTGenerator(ast)
                 ast = ast_gen.generate()
+            print(ast)
             original_dir = os.getcwd()
             os.chdir(self.runtime_dir)
             try:
