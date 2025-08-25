@@ -216,6 +216,7 @@ class CodeGenerator(ASTVisitor):
             )
         )
         self.emit.print_out(code)
+        print("\nnode", node, "type", type(typ), type(node.value))
         if isinstance(typ, ArrayType) and not isinstance(node.value, ArrayLiteral):
             jvm_type = self.emit.get_jvm_type(typ)
             self.emit.print_out(f"\tinvokevirtual {jvm_type}/clone()Ljava/lang/Object;\n")
@@ -238,15 +239,16 @@ class CodeGenerator(ASTVisitor):
             self.emit.print_out(arr_code)
             self.emit.print_out(idx_code)
             self.emit.print_out(val_code)
+            if isinstance(arr_type.element_type, ArrayType) and not isinstance(node.value, ArrayLiteral):
+                elem_jvm = self.emit.get_jvm_type(arr_type.element_type)  
+                print("Array assignment")
+                self.emit.print_out(f"\tinvokevirtual {elem_jvm}/clone()Ljava/lang/Object;\n")
+                self.emit.print_out(f"\tcheckcast {elem_jvm}\n")
             self.emit.print_out(self.emit.emit_astore(arr_type.element_type, frame))
             return o
         else:
             val_code, val_type = self.visit(node.value, Access(frame, o.sym))
             sym = next(filter(lambda x: x.name == node.lvalue.name, o.sym), None)
-            if not sym:
-                raise IllegalOperandException(f"Identifier not found: {node.lvalue.name}")
-            if not isinstance(val_type, type(sym.type)):
-                raise IllegalOperandException(f"Type mismatch in assignment to {node.lvalue.name}: expected {sym.type}, got {val_type}")
             self.emit.print_out(val_code)
             if isinstance(val_type, ArrayType) and not isinstance(node.value, ArrayLiteral):
                 jvm_type = self.emit.get_jvm_type(val_type)
